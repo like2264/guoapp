@@ -51,6 +51,8 @@ func (d *Downloader) providerBaseURL(source string) string {
 		configured, fallback = d.cfg.HeitaoURL, heitaoBaseURL
 	case sourceBeabox:
 		configured, fallback = d.cfg.BeaboxURL, beaboxBaseURL
+	case sourceXduanju:
+		configured, fallback = d.cfg.XduanjuURL, xduanjuBaseURL
 	default:
 		fallback = "https://d2pypzndaqisk.cloudfront.net"
 	}
@@ -92,6 +94,8 @@ func providerSourceForURL(raw string) string {
 		return sourceHanxiaoquan
 	case host == "heitaodj.com" || host == "www.heitaodj.com":
 		return sourceHeitao
+	case host == "x-duanju.com" || host == "www.x-duanju.com":
+		return sourceXduanju
 	default:
 		return ""
 	}
@@ -173,6 +177,9 @@ func (d *Downloader) resolveProviderMedia(ctx context.Context, task Task) (provi
 	}
 	if chapter.Source == sourceBeabox {
 		return d.resolveBeaboxMedia(ctx, task)
+	}
+	if chapter.Source == sourceXduanju {
+		return d.resolveXduanjuMedia(ctx, task)
 	}
 	if strings.HasPrefix(chapter.VideoURL, "hongguo-cenc://") {
 		return d.resolveHongguoMedia(ctx, task)

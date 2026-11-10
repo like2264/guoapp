@@ -36,6 +36,7 @@ const (
 	sourceHanxiaoquan   = "hanxiaoquan"
 	sourceHeitao        = "heitao"
 	sourceBeabox        = "beabox"
+	sourceXduanju       = "xduanju"
 
 	providerMaxBodyBytes = 20 * 1024 * 1024
 	providerTimeout      = 12 * time.Second
@@ -92,7 +93,7 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox:
+	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju:
 		return true
 	default:
 		return false
@@ -135,6 +136,8 @@ func canonicalProviderSource(source string) string {
 		return sourceHeitao
 	case "beabox":
 		return sourceBeabox
+	case "xduanju", "x-duanju.com", "www.x-duanju.com":
+		return sourceXduanju
 	default:
 		return strings.TrimSpace(source)
 	}
@@ -264,6 +267,9 @@ func (d *Downloader) GetHuangguoChapters(ctx context.Context, source, sourceID s
 		return drama.DisplayTitle(), chapters, err
 	case sourceBeabox:
 		drama, chapters, err := d.fetchBeaboxDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourceXduanju:
+		drama, chapters, err := d.fetchXduanjuDetail(ctx, sourceID)
 		return drama.DisplayTitle(), chapters, err
 	case sourceCloudFront:
 		return d.fetchLegacyChapters(ctx, sourceID)
