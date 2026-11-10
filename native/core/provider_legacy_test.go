@@ -217,3 +217,47 @@ func TestLegacyPublicProtocolValidation(t *testing.T) {
 		}
 	}
 }
+
+// 站点每页返回的条数未必等于请求的 pageSize。只要这一页还有剧，就必须允许继续翻，
+// 否则首屏会被误判成「已到底」，用户滚到底也看不到更早的剧。
+func TestLegacyCatalogPagesPastShortFirstPage(t *testing.T) {
+	pages := [][]Drama{
+		{{ID: "drama-1", Title: "样本一"}, {ID: "drama-2", Title: "样本二"}},
+		{{ID: "drama-3", Title: "样本三"}},
+		{},
+	}
+	var calls atomic.Int32
+	transport := sourceFixtureTransport(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/app/playlet-tab/all":
+			return legacyFixtureResponse(request, map[string]any{"list": []Tab{{ID: "tab-a", Name: "样本分类"}}}), nil
+		case "/api/app/playlet/home/tab/tab-a":
+			index := int(calls.Add(1)) - 1
+			if index >= len(pages) {
+				return legacyFixtureResponse(request, map[string]any{"list": []Drama{}}), nil
+			}
+			return legacyFixtureResponse(request, map[string]any{"list": pages[index]}), nil
+		default:
+			t.Errorf("unexpected request blocked: %s", request.URL.Path)
+			return nil, errors.New("unexpected endpoint")
+		}
+	})
+	d := legacyFixtureDownloader(t, transport)
+	d.cfg.Token = "own-fixture-session"
+	d.cfg.InterfaceKey, d.cfg.ParamKey, d.cfg.ParamIV = fixtureLegacyProtocol.InterfaceKey, fixtureLegacyProtocol.ParamKey, fixtureLegacyProtocol.ParamIV
+	d.cfg.PageSize = 30
+	cases := []struct {
+		page  int
+		count int
+		more  bool
+	}{{1, 2, true}, {2, 1, true}, {3, 0, false}}
+	for _, want := range cases {
+		items, more, err := d.fetchLegacyCatalogCategoryPage(context.Background(), want.page, "")
+		if err != nil {
+			t.Fatalf("page %d: %v", want.page, err)
+		}
+		if len(items) != want.count || more != want.more {
+			t.Fatalf("page %d: count=%d hasMore=%v, want count=%d hasMore=%v", want.page, len(items), more, want.count, want.more)
+		}
+	}
+}

@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// legacyCatalogMaxPage 限制「全部」最多翻到第几页，避免站点忽略页码时一直翻下去。
+const legacyCatalogMaxPage = 200
+
 func (d *Downloader) fetchLegacyCatalogPage(ctx context.Context, page int) ([]Drama, bool, error) {
 	return d.fetchLegacyCatalogCategoryPage(ctx, page, "")
 }
@@ -43,7 +46,9 @@ func (d *Downloader) fetchLegacyCatalogCategoryPage(ctx context.Context, page in
 			}
 			continue
 		}
-		hasMore = hasMore || len(result.List) >= pageSize
+		// 站点每页实际返回的条数可能少于请求的 pageSize，用「这一页还有没有剧」
+		// 判断能否继续翻，比「有没有凑满 pageSize」稳，不会在首屏就误判成到底。
+		hasMore = hasMore || len(result.List) > 0
 		for _, drama := range result.List {
 			if drama.ID == "" || seen[drama.ID] {
 				continue
@@ -61,6 +66,9 @@ func (d *Downloader) fetchLegacyCatalogCategoryPage(ctx context.Context, page in
 			}
 			items = append(items, drama)
 		}
+	}
+	if page >= legacyCatalogMaxPage {
+		hasMore = false
 	}
 	if category != "" {
 		found := false
