@@ -10,6 +10,7 @@ class SourceSite {
   bool get onlineSearch => pagedSearch;
   bool get pagedSearch =>
       id == 'hongguo' ||
+      id == 'cloudfront' ||
       id == 'huangju' ||
       id == 'yeguo' ||
       id == 'jinguoduanju' ||
