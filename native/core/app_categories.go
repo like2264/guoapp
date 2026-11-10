@@ -109,6 +109,8 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 	var err error
 	switch source {
 	case sourceCloudFront:
+		// 站点首页分类只有 5 个、合计两百多部；推荐位是另一条无限流，并进来能多出上百部。
+		all = append(all, nativeCategory{ID: legacyRecommendID, Name: legacyRecommendName})
 		var tabs legacyTabList
 		err = d.fetchAPI(ctx, "/api/app/playlet-tab/all", nil, &tabs)
 		for _, tab := range tabs {

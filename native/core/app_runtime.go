@@ -83,6 +83,8 @@ type Downloader struct {
 	apiFailures           map[string]time.Time
 	legacyOnce            sync.Once
 	legacy                *legacyAPIClient
+	legacyCatalogMu       sync.Mutex
+	legacyCatalogWalks    map[string]*legacyWalk
 	previewMu             sync.Mutex
 	previewSessions       map[string]*huangguoPreviewSession
 }
@@ -564,6 +566,17 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		}
 		result.HasMore = more
 		return result, nil
+	}
+	if query != "" && source == sourceCloudFront {
+		items, more, err := d.searchLegacyCatalog(ctx, page, query)
+		if err == nil {
+			for _, drama := range items {
+				result.Items = append(result.Items, nativeNormalize(drama))
+			}
+			result.HasMore = more
+			return result, nil
+		}
+		// 关键词接口不可用时退回本地剧库过滤，至少让已缓存的剧还能被搜到。
 	}
 	if query != "" && source == sourceGuipian {
 		items, more, err := d.fetchGuipianCatalogPage(ctx, page, "", query)

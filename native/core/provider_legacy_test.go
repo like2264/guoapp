@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -81,6 +82,8 @@ func TestLegacyAnonymousCatalogAndSessionReuse(t *testing.T) {
 			return legacyFixtureResponse(request, map[string]any{"list": []Tab{{ID: "current-tab", Name: "当前分类"}}}), nil
 		case "/api/app/playlet/home/tab/current-tab":
 			return legacyFixtureResponse(request, map[string]any{"list": []Drama{{ID: "current-drama", Title: "无图剧库样本", TotalEpisode: 2}}}), nil
+		case "/api/app/playlet-recommend/home/choose":
+			return legacyFixtureResponse(request, map[string]any{"list": []Drama{}}), nil
 		case "/api/app/playlet/detail/current-drama":
 			return legacyFixtureResponse(request, map[string]any{"title": "无图剧库样本", "chapters": []Chapter{{ID: "episode-1", VideoURL: "opaque-video-id"}}}), nil
 		default:
@@ -218,46 +221,194 @@ func TestLegacyPublicProtocolValidation(t *testing.T) {
 	}
 }
 
-// 站点每页返回的条数未必等于请求的 pageSize。只要这一页还有剧，就必须允许继续翻，
-// 否则首屏会被误判成「已到底」，用户滚到底也看不到更早的剧。
-func TestLegacyCatalogPagesPastShortFirstPage(t *testing.T) {
-	pages := [][]Drama{
-		{{ID: "drama-1", Title: "样本一"}, {ID: "drama-2", Title: "样本二"}},
-		{{ID: "drama-3", Title: "样本三"}},
-		{},
+// 站点的 count 恒为 9999、hasNext 恒为 false，两个字段都是假的，只能靠「翻到空页」判断到底。
+// 这个用例验证：分类真的会一路翻到空页、跨页不重复、推荐位并得进来、到底后 hasMore 变 false。
+func TestLegacyCatalogCrawlsEveryPageAndMergesRecommend(t *testing.T) {
+	tabPages := map[string][][]Drama{
+		"tab-a": {{{ID: "a1", Title: "甲一"}, {ID: "a2", Title: "甲二"}}, {{ID: "a3", Title: "甲三"}}, {}},
+		"tab-b": {{{ID: "b1", Title: "乙一"}, {ID: "b2", Title: "乙二"}}, {}},
 	}
-	var calls atomic.Int32
+	recommendPages := [][]Drama{{{ID: "r1", Title: "荐一"}}, {}}
 	transport := sourceFixtureTransport(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/api/app/playlet-tab/all":
-			return legacyFixtureResponse(request, map[string]any{"list": []Tab{{ID: "tab-a", Name: "样本分类"}}}), nil
-		case "/api/app/playlet/home/tab/tab-a":
-			index := int(calls.Add(1)) - 1
-			if index >= len(pages) {
+		path := request.URL.Path
+		switch {
+		case path == "/api/app/playlet-tab/all":
+			return legacyFixtureResponse(request, map[string]any{"list": []Tab{
+				{ID: "tab-a", Name: "甲类"}, {ID: "tab-b", Name: "乙类"},
+			}}), nil
+		case strings.HasPrefix(path, "/api/app/playlet/home/tab/"):
+			page, _ := strconv.Atoi(decodeLegacyParam(t, request)["pageNumber"])
+			pages := tabPages[strings.TrimPrefix(path, "/api/app/playlet/home/tab/")]
+			if page < 1 || page > len(pages) {
 				return legacyFixtureResponse(request, map[string]any{"list": []Drama{}}), nil
 			}
-			return legacyFixtureResponse(request, map[string]any{"list": pages[index]}), nil
+			return legacyFixtureResponse(request, map[string]any{"list": pages[page-1]}), nil
+		case path == "/api/app/playlet-recommend/home/choose":
+			page, _ := strconv.Atoi(decodeLegacyParam(t, request)["pageNumber"])
+			if page < 1 || page > len(recommendPages) {
+				return legacyFixtureResponse(request, map[string]any{"list": []Drama{}}), nil
+			}
+			return legacyFixtureResponse(request, map[string]any{"list": recommendPages[page-1]}), nil
 		default:
-			t.Errorf("unexpected request blocked: %s", request.URL.Path)
+			t.Errorf("unexpected request blocked: %s", path)
 			return nil, errors.New("unexpected endpoint")
 		}
 	})
 	d := legacyFixtureDownloader(t, transport)
 	d.cfg.Token = "own-fixture-session"
 	d.cfg.InterfaceKey, d.cfg.ParamKey, d.cfg.ParamIV = fixtureLegacyProtocol.InterfaceKey, fixtureLegacyProtocol.ParamKey, fixtureLegacyProtocol.ParamIV
-	d.cfg.PageSize = 30
-	cases := []struct {
-		page  int
-		count int
-		more  bool
-	}{{1, 2, true}, {2, 1, true}, {3, 0, false}}
-	for _, want := range cases {
-		items, more, err := d.fetchLegacyCatalogCategoryPage(context.Background(), want.page, "")
+	d.cfg.PageSize = 2
+
+	var got []string
+	var more bool
+	for page := 1; page <= 8; page++ {
+		items, next, err := d.fetchLegacyCatalogCategoryPage(context.Background(), page, "")
 		if err != nil {
-			t.Fatalf("page %d: %v", want.page, err)
+			t.Fatalf("page %d: %v", page, err)
 		}
-		if len(items) != want.count || more != want.more {
-			t.Fatalf("page %d: count=%d hasMore=%v, want count=%d hasMore=%v", want.page, len(items), more, want.count, want.more)
+		for _, drama := range items {
+			got = append(got, drama.SourceID)
+		}
+		more = next
+		if !next {
+			break
 		}
 	}
+	if more {
+		t.Fatal("catalog never reached the end")
+	}
+	seen := map[string]bool{}
+	for _, id := range got {
+		if id == "" || seen[id] {
+			t.Fatalf("duplicated or empty id in catalog: %q (%v)", id, got)
+		}
+		seen[id] = true
+	}
+	for _, want := range []string{"a1", "a2", "a3", "b1", "b2", "r1"} {
+		if !seen[want] {
+			t.Fatalf("catalog lost %s: %v", want, got)
+		}
+	}
+	if len(got) != 6 {
+		t.Fatalf("catalog size=%d, want 6: %v", len(got), got)
+	}
+}
+
+// 站点在请求过密时返回 4010，必须退避重试，不能把这一页当成空页——否则整屏剧会被判成「到底」。
+func TestLegacyCatalogRetriesRateLimitedPage(t *testing.T) {
+	var calls atomic.Int32
+	transport := sourceFixtureTransport(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/api/app/playlet-tab/all":
+			return legacyFixtureResponse(request, map[string]any{"list": []Tab{{ID: "tab-a", Name: "甲类"}}}), nil
+		case "/api/app/playlet/home/tab/tab-a":
+			if calls.Add(1) == 1 {
+				return sourceFixtureResponse(request, 200, `{"code":4010,"msg":"too many requests"}`), nil
+			}
+			return legacyFixtureResponse(request, map[string]any{"list": []Drama{{ID: "a1", Title: "甲一"}}}), nil
+		case "/api/app/playlet-recommend/home/choose":
+			return legacyFixtureResponse(request, map[string]any{"list": []Drama{}}), nil
+		default:
+			return nil, errors.New("unexpected endpoint")
+		}
+	})
+	d := legacyFixtureDownloader(t, transport)
+	d.cfg.Token = "own-fixture-session"
+	d.cfg.InterfaceKey, d.cfg.ParamKey, d.cfg.ParamIV = fixtureLegacyProtocol.InterfaceKey, fixtureLegacyProtocol.ParamKey, fixtureLegacyProtocol.ParamIV
+	d.cfg.PageSize = 5
+	items, _, err := d.fetchLegacyCatalogCategoryPage(context.Background(), 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].SourceID != "a1" || calls.Load() < 2 {
+		t.Fatalf("rate limited page was not retried: count=%d calls=%d", len(items), calls.Load())
+	}
+}
+
+// 「推荐」是一条独立剧目流，只打 playlet-recommend/home/choose。
+func TestLegacyRecommendCategoryUsesRecommendFeed(t *testing.T) {
+	var seen []string
+	transport := sourceFixtureTransport(func(request *http.Request) (*http.Response, error) {
+		seen = append(seen, request.URL.Path)
+		switch request.URL.Path {
+		case "/api/app/playlet-tab/all":
+			return legacyFixtureResponse(request, map[string]any{"list": []Tab{{ID: "tab-a", Name: "甲类"}}}), nil
+		case "/api/app/playlet-recommend/home/choose":
+			page, _ := strconv.Atoi(decodeLegacyParam(t, request)["pageNumber"])
+			if page > 1 {
+				return legacyFixtureResponse(request, map[string]any{"list": []Drama{}}), nil
+			}
+			return legacyFixtureResponse(request, map[string]any{"list": []Drama{{ID: "r1", Title: "荐一"}}}), nil
+		default:
+			t.Errorf("recommend category must not touch %s", request.URL.Path)
+			return nil, errors.New("unexpected endpoint")
+		}
+	})
+	d := legacyFixtureDownloader(t, transport)
+	d.cfg.Token = "own-fixture-session"
+	d.cfg.InterfaceKey, d.cfg.ParamKey, d.cfg.ParamIV = fixtureLegacyProtocol.InterfaceKey, fixtureLegacyProtocol.ParamKey, fixtureLegacyProtocol.ParamIV
+	d.cfg.PageSize = 5
+	items, _, err := d.fetchLegacyCatalogCategoryPage(context.Background(), 1, legacyRecommendID)
+	if err != nil || len(items) != 1 || items[0].ChannelName != legacyRecommendName {
+		t.Fatalf("recommend catalog: count=%d error=%v paths=%v", len(items), err, seen)
+	}
+	for _, path := range seen {
+		if strings.Contains(path, "/playlet/home/tab/") {
+			t.Fatalf("recommend category hit a tab feed: %v", seen)
+		}
+	}
+}
+
+// 旧版搜索必须打站点的关键词接口，而不是只过滤本地剧库。
+func TestLegacyKeywordSearchUsesSiteSearchEndpoint(t *testing.T) {
+	var keyword, pageNumber string
+	transport := sourceFixtureTransport(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/api/app/playlet/keyword/search" {
+			t.Errorf("unexpected request: %s", request.URL.Path)
+			return nil, errors.New("unexpected endpoint")
+		}
+		params := decodeLegacyParam(t, request)
+		keyword, pageNumber = params["keyword"], params["pageNumber"]
+		return legacyFixtureResponse(request, map[string]any{"list": []Drama{
+			{ID: "search-1", Title: "搜索结果一", TotalEpisode: 3},
+			{ID: "search-1", Title: "重复条目"},
+			{ID: "", Title: "坏条目"},
+		}}), nil
+	})
+	d := legacyFixtureDownloader(t, transport)
+	d.cfg.Token = "own-fixture-session"
+	d.cfg.InterfaceKey, d.cfg.ParamKey, d.cfg.ParamIV = fixtureLegacyProtocol.InterfaceKey, fixtureLegacyProtocol.ParamKey, fixtureLegacyProtocol.ParamIV
+	items, more, err := d.searchLegacyCatalog(context.Background(), 1, "  样本名  ")
+	if err != nil || len(items) != 1 || !more {
+		t.Fatalf("search: count=%d more=%v err=%v", len(items), more, err)
+	}
+	if keyword != "样本名" || pageNumber != "1" {
+		t.Fatalf("params: keyword=%q pageNumber=%q", keyword, pageNumber)
+	}
+	if items[0].Source != sourceCloudFront || items[0].SourceID != "search-1" {
+		t.Fatalf("item identity: %+v", items[0])
+	}
+}
+
+func decodeLegacyParam(t *testing.T, request *http.Request) map[string]string {
+	t.Helper()
+	raw := request.URL.Query().Get("data")
+	encrypted, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil || len(encrypted) == 0 || len(encrypted)%16 != 0 {
+		t.Fatalf("invalid encrypted params: %v", err)
+	}
+	block, err := aes.NewCipher([]byte(fixtureLegacyProtocol.ParamKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cipher.NewCBCDecrypter(block, []byte(fixtureLegacyProtocol.ParamIV)).CryptBlocks(encrypted, encrypted)
+	plain, err := pkcs7Unpad(encrypted, 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]string
+	if err := json.Unmarshal(plain, &params); err != nil {
+		t.Fatal(err)
+	}
+	return params
 }
