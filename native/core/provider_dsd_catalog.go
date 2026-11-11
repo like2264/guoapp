@@ -200,7 +200,11 @@ func dsdPagination(document *html.Node, pageURL, category, query string, page in
 			break
 		}
 	}
-	if activePage != page {
+	if activePage != 0 && activePage != page {
+		if activePage < page {
+			// 站点会把超出末页的请求钳回前面的页码，按已到底结束，不要当成错误弹给用户。
+			return page, nil
+		}
 		return 0, errors.New("帝果返回的页码与请求不符")
 	}
 	pages := page

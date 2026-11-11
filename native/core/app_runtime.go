@@ -39,6 +39,7 @@ type Config struct {
 	HeitaoURL        string
 	BeaboxURL        string
 	XduanjuURL       string
+	HuangtaoURL      string
 	Token            string
 	AESKeyHex        string
 	InterfaceKey     string
@@ -600,6 +601,17 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		result.HasMore = more
 		return result, nil
 	}
+	if query != "" && source == sourceHuangguoVideo {
+		items, more, err := d.searchHuangguoVideo(ctx, query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
+		return result, nil
+	}
 	if query != "" && source == sourceHanxiaoquan {
 		items, more, err := d.fetchHanxiaoquanCatalogPage(ctx, page, "", query)
 		if err != nil {
@@ -635,6 +647,17 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	}
 	if query != "" && source == sourceXduanju {
 		items, more, err := d.fetchXduanjuCatalogPage(ctx, page, "", query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
+		return result, nil
+	}
+	if query != "" && source == sourceHuangtao {
+		items, more, err := d.fetchHuangtaoCatalogPage(ctx, page, "", query)
 		if err != nil {
 			return result, err
 		}
@@ -759,6 +782,8 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		items, result.HasMore, err = d.fetchBeaboxCatalogPage(ctx, page, category, "")
 	case sourceXduanju:
 		items, result.HasMore, err = d.fetchXduanjuCatalogPage(ctx, page, category, "")
+	case sourceHuangtao:
+		items, result.HasMore, err = d.fetchHuangtaoCatalogPage(ctx, page, category, "")
 	case sourceHuangguoVideo:
 		address := fmt.Sprintf("%s/videos?page=%d", d.providerBaseURL(source), page)
 		if category != "" {
@@ -776,7 +801,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	if err != nil && len(items) == 0 {
 		return result, err
 	}
-	if len(items) == 0 && page == 1 && source != sourceHuangju && source != sourceYeguo && source != sourceJinguoDuanju && source != sourceJinguo && source != sourceDSD && source != sourceSorani && source != sourceGuipian && source != sourceHanxiaoquan && source != sourceHeitao && source != sourceBeabox && source != sourceXduanju {
+	if len(items) == 0 && page == 1 && source != sourceHuangju && source != sourceYeguo && source != sourceJinguoDuanju && source != sourceJinguo && source != sourceDSD && source != sourceSorani && source != sourceGuipian && source != sourceHanxiaoquan && source != sourceHeitao && source != sourceBeabox && source != sourceXduanju && source != sourceHuangtao {
 		return result, errors.New("站源暂未返回剧集，请稍后刷新")
 	}
 	if err != nil {
@@ -832,6 +857,8 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 		raw, chapters, err = engine.downloader.fetchBeaboxDetail(ctx, sourceID)
 	case sourceXduanju:
 		raw, chapters, err = engine.downloader.fetchXduanjuDetail(ctx, sourceID)
+	case sourceHuangtao:
+		raw, chapters, err = engine.downloader.fetchHuangtaoDetail(ctx, sourceID)
 	default:
 		title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
 	}

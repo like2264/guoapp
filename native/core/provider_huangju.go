@@ -166,7 +166,14 @@ func (d *Downloader) fetchHuangjuCatalogPage(ctx context.Context, page int, cate
 	}
 	if row["page"] != nil {
 		actualPage, valid := huangjuInteger(row["page"], 1000000)
-		if !valid || actualPage != page {
+		if !valid {
+			return nil, false, errors.New("剧果分页数据格式无效")
+		}
+		if actualPage != page {
+			if actualPage < page {
+				// 站点会把超出末页的请求钳回前面的页码，按已到底结束，不要当成错误弹给用户。
+				return nil, false, nil
+			}
 			return nil, false, errors.New("剧果返回的页码与请求不符")
 		}
 	}

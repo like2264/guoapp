@@ -37,6 +37,7 @@ const (
 	sourceHeitao        = "heitao"
 	sourceBeabox        = "beabox"
 	sourceXduanju       = "xduanju"
+	sourceHuangtao      = "huangtao"
 
 	providerMaxBodyBytes = 20 * 1024 * 1024
 	providerTimeout      = 12 * time.Second
@@ -93,7 +94,7 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju:
+	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju, sourceHuangtao:
 		return true
 	default:
 		return false
@@ -138,6 +139,8 @@ func canonicalProviderSource(source string) string {
 		return sourceBeabox
 	case "xduanju", "x-duanju.com", "www.x-duanju.com":
 		return sourceXduanju
+	case "huangtao", "aihuangdou.com", "www.aihuangdou.com":
+		return sourceHuangtao
 	default:
 		return strings.TrimSpace(source)
 	}
@@ -271,6 +274,9 @@ func (d *Downloader) GetHuangguoChapters(ctx context.Context, source, sourceID s
 	case sourceXduanju:
 		drama, chapters, err := d.fetchXduanjuDetail(ctx, sourceID)
 		return drama.DisplayTitle(), chapters, err
+	case sourceHuangtao:
+		drama, chapters, err := d.fetchHuangtaoDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
 	case sourceCloudFront:
 		return d.fetchLegacyChapters(ctx, sourceID)
 	default:
@@ -286,6 +292,26 @@ func (d *Downloader) fetchHuangguoAIChapters(ctx context.Context, sourceID strin
 func (d *Downloader) fetchHuangguoVideoChapters(ctx context.Context, sourceID string) (string, []Chapter, error) {
 	drama, chapters, err := d.fetchHuangguoVideoDetail(ctx, sourceID)
 	return drama.DisplayTitle(), chapters, err
+}
+
+// 黄果视频的搜索页是服务端渲染的 /search?q=，卡片结构与列表页不同（没有 video-card class），
+// 由 parseHuangguoVideoCards 里的兜底分支解析。
+//
+// 这个搜索页只给第一页的 10 条：实测 page/p/pageNum/page_no/size/limit 全部被站点忽略
+// （8 种组合返回的首条与第一页完全相同），所以这里固定返回 hasMore=false，
+// 避免客户端一直往下翻、反复拿到同一批结果。
+func (d *Downloader) searchHuangguoVideo(ctx context.Context, query string) ([]Drama, bool, error) {
+	query = strings.TrimSpace(query)
+	if query == "" || len([]rune(query)) > 64 {
+		return nil, false, errors.New("黄果搜索关键词无效")
+	}
+	base := d.providerBaseURL(sourceHuangguoVideo)
+	address := base + "/search?q=" + url.QueryEscape(query)
+	body, err := d.fetchProviderText(ctx, address, base+"/")
+	if err != nil {
+		return nil, false, err
+	}
+	return parseHuangguoVideoCards(body, address), false, nil
 }
 
 func (d *Downloader) fetchHuangguoVideoDetail(ctx context.Context, sourceID string) (Drama, []Chapter, error) {
@@ -615,6 +641,15 @@ func parseHuangguoVideoCards(rawHTML, pageURL string) []Drama {
 				blocks = append(blocks, block)
 			}
 		}
+	}
+	// 搜索结果页的卡片没有 video-card 这个 class，改用「带剧集链接的任意 article」兜底；
+	// 仍然要求块内有 /series/ 或 /video/ 链接，所以不会把导航或广告块当成剧集。
+	if len(blocks) == 0 {
+		blocks = reAnyArticle.FindAllString(rawHTML, -1)
+	}
+	// 既没有 article 包裹时，退到直接用剧集链接当块（标题在链接内部，实测可以取到）。
+	if len(blocks) == 0 {
+		blocks = reHuangguoLink.FindAllString(rawHTML, -1)
 	}
 	seen := map[string]bool{}
 	var out []Drama

@@ -81,6 +81,8 @@ func validNativeCategory(source, category string) bool {
 		return validBeaboxCategory(category)
 	case sourceXduanju:
 		return validXduanjuCategory(category)
+	case sourceHuangtao:
+		return validHuangtaoCategory(category)
 	}
 	return false
 }
@@ -176,6 +178,12 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 	case sourceXduanju:
 		var categories []nativeCategory
 		categories, err = d.fetchXduanjuCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceHuangtao:
+		var categories []nativeCategory
+		categories, err = d.fetchHuangtaoCategories(ctx)
 		if err == nil {
 			all = append(all, categories...)
 		}
