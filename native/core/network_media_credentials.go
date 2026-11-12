@@ -9,21 +9,21 @@ import (
 	"time"
 )
 
-type MediaCredentials struct {
-	Cookie    string
-	Origin    string
-	Referer   string
-	UserAgent string
-	Expires   time.Time
+type providerMediaCredentials struct {
+	cookie    string
+	origin    string
+	referer   string
+	userAgent string
+	expires   time.Time
 }
 
-type MediaCredentialsKey struct{}
+type providerMediaCredentialsKey struct{}
 
-func providerMediaContext(ctx context.Context, credentials *MediaCredentials) context.Context {
-	return context.WithValue(ctx, MediaCredentialsKey{}, credentials)
+func providerMediaContext(ctx context.Context, credentials *providerMediaCredentials) context.Context {
+	return context.WithValue(ctx, providerMediaCredentialsKey{}, credentials)
 }
 
-func ProviderMediaOrigin(address *url.URL) string {
+func providerMediaOrigin(address *url.URL) string {
 	if address == nil {
 		return ""
 	}
@@ -35,27 +35,27 @@ func ProviderMediaOrigin(address *url.URL) string {
 	return scheme + "://" + host
 }
 
-func (credentials *MediaCredentials) apply(request *http.Request) error {
+func (credentials *providerMediaCredentials) apply(request *http.Request) error {
 	request.Header.Del("Cookie")
-	if credentials.UserAgent != "" {
-		request.Header.Set("User-Agent", credentials.UserAgent)
+	if credentials.userAgent != "" {
+		request.Header.Set("User-Agent", credentials.userAgent)
 	}
-	if credentials.Referer != "" {
-		request.Header.Set("Referer", credentials.Referer)
-		if address, err := url.Parse(credentials.Referer); err == nil {
-			request.Header.Set("Origin", ProviderMediaOrigin(address))
+	if credentials.referer != "" {
+		request.Header.Set("Referer", credentials.referer)
+		if address, err := url.Parse(credentials.referer); err == nil {
+			request.Header.Set("Origin", providerMediaOrigin(address))
 		}
 	}
-	if ProviderMediaOrigin(request.URL) == credentials.Origin {
-		if !credentials.Expires.IsZero() && !time.Now().Before(credentials.Expires) {
+	if providerMediaOrigin(request.URL) == credentials.origin {
+		if !credentials.expires.IsZero() && !time.Now().Before(credentials.expires) {
 			return errors.New("播放凭证已过期，请重新解析播放")
 		}
-		request.Header.Set("Cookie", credentials.Cookie)
+		request.Header.Set("Cookie", credentials.cookie)
 	}
 	return nil
 }
 
-func (credentials *MediaCredentials) client(client *http.Client) *http.Client {
+func (credentials *providerMediaCredentials) client(client *http.Client) *http.Client {
 	scoped := *client
 	scoped.Jar = nil
 	previousRedirect := client.CheckRedirect

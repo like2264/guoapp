@@ -23,14 +23,13 @@ import 'episode_grid.dart';
 import 'mini_player.dart';
 import 'playback_handle.dart';
 import 'playback_sheets.dart';
-import 'player_status.dart';
 import 'fade_presence.dart';
 import 'player_surface.dart';
 import 'player_video.dart';
 import 'swipe_controls.dart';
 import 'window_fullscreen.dart';
 
-enum _Panel { episodes, settings, speed, quality, fit }
+enum _Panel { episodes, settings, speed, quality }
 
 class LandscapePlayerPage extends StatefulWidget {
   const LandscapePlayerPage({
@@ -53,11 +52,7 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
     with WidgetsBindingObserver {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final _selected = <int>{};
-  final _links = {
-    _Panel.speed: LayerLink(),
-    _Panel.quality: LayerLink(),
-    _Panel.fit: LayerLink(),
-  };
+  final _links = {_Panel.speed: LayerLink(), _Panel.quality: LayerLink()};
   Player? _bound;
   Timer? _hideTimer;
   Timer? _tapTimer;
@@ -437,19 +432,16 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
           key: ValueKey(session.player),
           handle: widget.handle,
           player: session.player,
-          fit: session.videoFit,
         ),
         DanmakuOverlay(
           controller: session.danmaku,
-          video: session.videoSize,
-          fit: session.videoFit,
+          aspectRatio: session.aspectRatio,
           style: session.danmakuStyle,
         ),
         SwipeControls(
           session: session,
           enabled: full,
           levels: session.store.playbackPreferences.swipeLevels,
-          episodes: session.store.playbackPreferences.swipeEpisodes,
           child: LayoutBuilder(
             builder: (context, constraints) => GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -494,7 +486,7 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
             ),
           ),
         ),
-        if (full && !visible && session.store.playbackPreferences.progressLine)
+        if (full && !visible)
           Positioned(
             left: 0,
             right: 0,
@@ -649,7 +641,6 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
 
   Widget _fullControls(BuildContext context) {
     final session = _session;
-    final preferences = session.store.playbackPreferences;
     final padding = MediaQuery.viewPaddingOf(context);
     final left = math.max(padding.left, 20.0);
     final right = math.max(padding.right, 20.0);
@@ -715,31 +706,19 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
                 extent: 44,
               ),
               const SizedBox(width: 8),
-              if (preferences.showNetworkSpeed) ...[
-                NetworkSpeedText(
-                  session: session,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: .78),
-                    fontSize: 12,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
               if (_battery case final battery?) ...[
                 _batteryMark(battery),
                 const SizedBox(width: 12),
               ],
-              if (preferences.showClock)
-                Text(
-                  '${_two(_now.hour)}:${_two(_now.minute)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
+              Text(
+                '${_two(_now.hour)}:${_two(_now.minute)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
+              ),
               const SizedBox(width: 4),
               if (session.danmakuSupported) _danmakuButton(context),
               if (widget.onMiniWindow case final onMiniWindow?)
@@ -808,17 +787,6 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
                   '倍速',
                   ready ? () => _openPanel(_Panel.speed) : null,
                   bold: true,
-                ),
-              ),
-              CompositedTransformTarget(
-                link: _links[_Panel.fit]!,
-                child: _icon(
-                  Icons.aspect_ratio_rounded,
-                  '画面比例 · ${session.videoFit.label}',
-                  () => _openPanel(_Panel.fit),
-                  color: session.videoFit == VideoFit.auto
-                      ? null
-                      : Theme.of(context).colorScheme.primary,
                 ),
               ),
               _icon(Icons.fullscreen_exit_rounded, '退出全屏', () => _rotate(true)),
@@ -1194,26 +1162,19 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: switch (panel) {
-          _Panel.speed => _options<double>(
-            values: playbackSpeeds.reversed.toList(),
-            selected: session.speed,
-            label: (value) => '${value}x',
-            onSelected: (value) => _change(() => session.setSpeed(value)),
-          ),
-          _Panel.fit => _options<VideoFit>(
-            values: VideoFit.values,
-            selected: session.videoFit,
-            label: (value) => value.label,
-            onSelected: (value) => _change(() => session.setVideoFit(value)),
-          ),
-          _ => _options<int>(
-            values: [...session.qualities, 0],
-            selected: session.quality,
-            label: (value) => value == 0 ? '自动' : '${value}P',
-            onSelected: (value) => _change(() => session.setQuality(value)),
-          ),
-        },
+        child: panel == _Panel.speed
+            ? _options<double>(
+                values: playbackSpeeds.reversed.toList(),
+                selected: session.speed,
+                label: (value) => '${value}x',
+                onSelected: (value) => _change(() => session.setSpeed(value)),
+              )
+            : _options<int>(
+                values: [...session.qualities, 0],
+                selected: session.quality,
+                label: (value) => value == 0 ? '自动' : '${value}P',
+                onSelected: (value) => _change(() => session.setQuality(value)),
+              ),
       ),
     );
   }

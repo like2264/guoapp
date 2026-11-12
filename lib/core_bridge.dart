@@ -91,7 +91,6 @@ abstract class AppRepository {
   Future<void> cancelSuggestions() async {}
   Future<void> cancelRecommendations() async {}
   Future<Drama?> supplementMetadata(Drama drama) async => null;
-  Future<List<DramaSeason>> seasons(Drama drama) async => const [];
   Future<Drama> followCheck(Drama drama) async => (await detail(drama)).drama;
   Future<CatalogPage> recommendations(
     String genre, {
@@ -113,7 +112,7 @@ abstract class AppRepository {
   Future<Map<String, dynamic>> storage() async => {};
   Future<String> downloadDirectory() async =>
       (await storage())['directory'] as String? ?? '';
-  Future<String> moveDownloads(String directory) async =>
+  Future<void> moveDownloads(String directory) async =>
       throw AppFailure('当前环境不支持迁移');
   Future<int> workLease(String id, String command) async => 0;
   bool get supportsDownloads => false;
@@ -427,7 +426,7 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  Future<String> moveDownloads(String directory) async {
+  Future<void> moveDownloads(String directory) async {
     _downloadPermission();
     if (access != null && !access!.profile.admin) {
       throw AppFailure('仅管理员可更改下载目录');
@@ -435,11 +434,7 @@ class NativeRepository extends AppRepository {
     await BackgroundDownloads.ensureStarted();
     await workLease('storage', 'start');
     try {
-      final result = await _call({
-        'action': 'moveDownloads',
-        'directory': directory,
-      });
-      return result['leftover'] as String? ?? '';
+      await _call({'action': 'moveDownloads', 'directory': directory});
     } finally {
       await workLease('storage', 'end');
     }
@@ -567,7 +562,6 @@ class NativeRepository extends AppRepository {
         'cover',
         'prepareCover',
         'detail',
-        'seasons',
         'metadata',
         'resolve',
         'preload',
@@ -669,13 +663,9 @@ class NativeRepository extends AppRepository {
       'directory': directory.path,
       if (external != null) 'downloads': path.join(external.path, 'downloads'),
     });
-    if (build['flavor'] != appFlavor) {
+    if (build['allSources'] != allSourcesEnabled) {
       throw AppFailure('应用与原生核心的站源版本不一致，请使用完整安装包重新安装');
     }
-    SourceSite.install([
-      for (final row in build['sources'] as List? ?? const [])
-        SourceSite.fromJson(Map<String, dynamic>.from(row as Map)),
-    ]);
     if (!background) await BackgroundDownloads.prepare();
     if (!background) {
       SystemProxyMonitor.start((value) async {
@@ -769,16 +759,6 @@ class NativeRepository extends AppRepository {
   Future<DramaDetail> detail(Drama drama) async => DramaDetail.fromJson(
     await _call({'action': 'detail', 'drama': drama.toJson()}),
   );
-
-  @override
-  Future<List<DramaSeason>> seasons(Drama drama) async {
-    final result = await _call({'action': 'seasons', 'drama': drama.toJson()});
-    return [
-      for (final row in result['items'] as List? ?? const [])
-        DramaSeason.fromJson(Map<String, dynamic>.from(row as Map)),
-    ];
-  }
-
   @override
   Future<PlaybackPlan> resolve(
     Drama drama,

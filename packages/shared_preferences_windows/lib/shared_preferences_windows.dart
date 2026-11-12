@@ -42,6 +42,7 @@ class SharedPreferencesWindows extends SharedPreferencesStorePlatform {
   FileSystem fs = const LocalFileSystem();
 
   /// The path_provider_windows instance used to find the support directory.
+  @visibleForTesting
   PathProviderWindows pathProvider = PathProviderWindows();
 
   /// Checks for cached preferences and returns them or loads preferences from

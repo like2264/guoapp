@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app_build.dart';
 import '../../local_store.dart';
 import '../../models.dart';
 import '../search/search_page.dart';
@@ -16,7 +17,7 @@ Future<void> pickSource(BuildContext anchor, LocalStore store) async {
     ],
     selected: store.source,
     grid: ChoiceGrid.sources,
-    action: SourceSite.values.length > 1
+    action: allSourcesEnabled
         ? (
             label: '管理站源',
             icon: Icons.tune_rounded,

@@ -26,7 +26,7 @@ class SourceCatalog {
   static const recommendGenre = 'find_drama';
   static const topicPrefix = 'tag:';
 
-  bool get recommends => source.recommends;
+  bool get recommends => source.id == SourceSite.hongguo.id;
 
   List<RankingBoard> get boards => _boards;
 

@@ -98,7 +98,7 @@ func (manager *nativeDownloads) controlBatch(ctx context.Context, ids []string, 
 			continue
 		}
 		if err := manager.control(id, command); err != nil {
-			result.Failures[id] = PublicError(err).Error()
+			result.Failures[id] = publicError(err).Error()
 		} else {
 			result.Completed = append(result.Completed, id)
 		}

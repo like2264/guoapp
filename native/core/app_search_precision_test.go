@@ -3,12 +3,12 @@ package core
 import "testing"
 
 func TestNativePreciseSearchRanksAndDrops(t *testing.T) {
-	items := []LibraryDrama{
-		{ID: "a:1", Title: "都市爱情故事", Description: "总裁也会心动"},
+	items := []nativeDrama{
+		{ID: "a:1", Title: "都市爱情故事", Description: "总裁会很心动"},
 		{ID: "a:2", Title: "霸道总裁的替身新娘", Description: "无"},
 		{ID: "a:3", Title: "总裁", Description: "无"},
 		{ID: "a:4", Title: "总裁在上", Description: "无"},
-		{ID: "a:5", Title: "完全无关的农村题材", Description: "无", Tags: []string{"总裁文"}},
+		{ID: "a:5", Title: "完全无关的倒霉蛋", Description: "无", Tags: []string{"总裁剧"}},
 		{ID: "a:6", Title: "另一个无关剧", Description: "无"},
 	}
 	got := NativePreciseSearch(items, "总裁")
@@ -25,9 +25,9 @@ func TestNativePreciseSearchRanksAndDrops(t *testing.T) {
 }
 
 func TestNativePreciseSearchKeepsEverythingWhenNothingMatches(t *testing.T) {
-	items := []LibraryDrama{
-		{ID: "a:1", Title: "甲剧"},
-		{ID: "a:2", Title: "乙剧"},
+	items := []nativeDrama{
+		{ID: "a:1", Title: "喜剧"},
+		{ID: "a:2", Title: "悲剧"},
 	}
 	got := NativePreciseSearch(items, "完全不存在")
 	if len(got) != len(items) {
@@ -36,7 +36,7 @@ func TestNativePreciseSearchKeepsEverythingWhenNothingMatches(t *testing.T) {
 }
 
 func TestNativePreciseSearchMultiWord(t *testing.T) {
-	items := []LibraryDrama{
+	items := []nativeDrama{
 		{ID: "a:1", Title: "总裁的契约新娘"},
 		{ID: "a:2", Title: "总裁归来"},
 		{ID: "a:3", Title: "无关剧"},
@@ -47,7 +47,7 @@ func TestNativePreciseSearchMultiWord(t *testing.T) {
 	}
 }
 
-func ids(items []LibraryDrama) []string {
+func ids(items []nativeDrama) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		out = append(out, item.ID)

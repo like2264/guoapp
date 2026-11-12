@@ -49,7 +49,12 @@ func nativeReleasePrefix() string {
 	return project + "/releases/"
 }
 
-func nativeAppBuildSlug() string { return buildFlavor() }
+func nativeAppBuildSlug() string {
+	if buildAllSources == "true" {
+		return "zhenguojian"
+	}
+	return "hongguojian"
+}
 
 func nativeAppBuildNumber(version string) (int, bool) {
 	match := nativeAppVersionPattern.FindStringSubmatch(version)

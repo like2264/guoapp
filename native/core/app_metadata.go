@@ -3,36 +3,75 @@ package core
 import (
 	"context"
 	"errors"
+	"net/url"
+	"strings"
 	"time"
 )
 
-func (engine *nativeEngine) nativeNeedsExtraMetadata(drama LibraryDrama) bool {
-	if p, ok := engine.downloader.provider(drama.Source); ok {
-		enricher, ok := p.(MetadataEnricher)
-		return ok && enricher.NeedsExtraMetadata(drama)
-	}
-	return false
+func nativeNeedsExtraMetadata(drama nativeDrama) bool {
+	return drama.Source == sourceHongguo && (drama.OnlineDate == "" || drama.Score == "") ||
+		drama.Source == sourceHuangdou && (drama.Heat == "" || drama.VIP == nil)
 }
 
-func (engine *nativeEngine) nativeExtraMetadata(ctx context.Context, drama LibraryDrama) (LibraryDrama, error) {
-	source, id, valid := SplitProviderDramaID(drama.ID)
+func (engine *nativeEngine) nativeExtraMetadata(ctx context.Context, drama nativeDrama) (nativeDrama, error) {
+	source, id, valid := splitProviderDramaID(drama.ID)
 	if !valid {
 		return drama, errors.New("剧集信息无效")
 	}
-	if !engine.nativeNeedsExtraMetadata(drama) {
+	if !nativeNeedsExtraMetadata(drama) {
 		return drama, nil
 	}
-	ctx, cancel := context.WithTimeout(context.WithValue(ctx, BackgroundCatalogKey{}, true), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithValue(ctx, backgroundCatalogKey{}, true), 15*time.Second)
 	defer cancel()
-	p, ok := engine.downloader.provider(source)
-	if !ok {
-		return drama, errors.New("请选择有效站源")
+	var raw Drama
+	switch source {
+	case sourceHongguo:
+		if !hongguoNumericID.MatchString(id) {
+			return drama, errors.New("红果剧集 ID 无效")
+		}
+		if drama.OnlineDate == "" {
+			body, err := engine.downloader.fetchProviderText(ctx, hongguoBaseURL+"/detail?series_id="+url.QueryEscape(id), hongguoBaseURL+"/")
+			if err != nil {
+				return drama, err
+			}
+			raw, err = parseHongguoSortDetail(body, id)
+			if err != nil {
+				return drama, err
+			}
+		}
+	case sourceHuangdou:
+		row, err := engine.downloader.huangdouDetail(ctx, id)
+		if err != nil {
+			return drama, err
+		}
+		raw = huangdouDramaFromMap(row)
+		if raw.Heat == "" && drama.Heat == "" {
+			var decoded any
+			err = newHuangdouAPIClient(engine.downloader).call(ctx, "/drama/list", map[string]any{
+				"keywords": firstNonEmpty(raw.Title, drama.Title), "page": "1", "page_size": "50",
+			}, &decoded)
+			if err != nil {
+				return drama, err
+			}
+			for _, candidate := range huangdouList(decoded) {
+				if strings.TrimPrefix(mapString(candidate, "id", "drama_id"), "rp_") == id {
+					raw = mergeDramaMetadata(huangdouDramaFromMap(candidate), raw)
+					break
+				}
+			}
+		}
 	}
-	return p.(MetadataEnricher).ExtraMetadata(ctx, drama, id)
+	if raw.ID == drama.ID {
+		drama = mergeNativeDrama(drama, nativeNormalize(raw))
+	}
+	if source == sourceHongguo && drama.Score == "" {
+		drama.Score = nativeDramaScore(engine.downloader.hongguoSearchScore(ctx, drama.ID, drama.Title))
+	}
+	return drama, ctx.Err()
 }
 
-func (engine *nativeEngine) nativeFollowCheck(ctx context.Context, drama LibraryDrama) (any, error) {
-	ctx, cancel := context.WithTimeout(context.WithValue(ctx, BackgroundCatalogKey{}, true), 20*time.Second)
+func (engine *nativeEngine) nativeFollowCheck(ctx context.Context, drama nativeDrama) (any, error) {
+	ctx, cancel := context.WithTimeout(context.WithValue(ctx, backgroundCatalogKey{}, true), 20*time.Second)
 	defer cancel()
 	result, err := engine.nativeDetail(ctx, drama)
 	if err != nil {
@@ -41,7 +80,7 @@ func (engine *nativeEngine) nativeFollowCheck(ctx context.Context, drama Library
 	return map[string]any{"drama": result.(map[string]any)["drama"]}, nil
 }
 
-func (engine *nativeEngine) nativeMetadata(ctx context.Context, drama LibraryDrama) (any, error) {
+func (engine *nativeEngine) nativeMetadata(ctx context.Context, drama nativeDrama) (any, error) {
 	fresh, err := engine.nativeExtraMetadata(ctx, drama)
 	if err != nil {
 		return nil, err

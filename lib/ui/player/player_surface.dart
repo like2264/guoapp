@@ -14,8 +14,6 @@ import '../widgets/motion/motion_widgets.dart';
 import 'danmaku_overlay.dart';
 import 'fade_presence.dart';
 import 'playback_handle.dart';
-import 'playback_sheets.dart';
-import 'player_status.dart';
 import 'player_video.dart';
 import 'swipe_controls.dart';
 
@@ -26,7 +24,7 @@ String formatClock(Duration value) {
   return seconds >= 3600 ? '${seconds ~/ 3600}:$clock' : clock;
 }
 
-enum _Popup { quality, speed, fit, sleep, volume }
+enum _Popup { quality, speed, volume }
 
 class PlayerSurface extends StatefulWidget {
   const PlayerSurface({
@@ -317,12 +315,10 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
               key: ValueKey(_session.player),
               handle: widget.handle,
               player: _session.player,
-              fit: _session.videoFit,
             ),
             DanmakuOverlay(
               controller: _session.danmaku,
-              video: _session.videoSize,
-              fit: _session.videoFit,
+              aspectRatio: _session.aspectRatio,
               style: _session.danmakuStyle,
             ),
             if (widget.touch)
@@ -330,7 +326,6 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
                 session: _session,
                 enabled: widget.fullscreen,
                 levels: _session.store.playbackPreferences.swipeLevels,
-                episodes: _session.store.playbackPreferences.swipeEpisodes,
                 child: LayoutBuilder(
                   builder: (context, constraints) => GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -598,42 +593,15 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
           height: 48,
           child: _toolbar(context, position),
         ),
-        if (widget.fullscreen &&
-            (_session.preferences.showClock ||
-                _session.preferences.showNetworkSpeed))
-          Positioned(
-            top: 12,
-            right: 20,
-            child: IgnorePointer(
-              child: Row(
-                spacing: 12,
-                children: [
-                  if (_session.preferences.showNetworkSpeed)
-                    NetworkSpeedText(session: _session, style: _statusStyle),
-                  if (_session.preferences.showClock)
-                    const ClockText(style: _statusStyle),
-                ],
-              ),
-            ),
-          ),
       ],
     );
   }
-
-  static const _statusStyle = TextStyle(
-    color: Colors.white,
-    fontSize: 13,
-    fontWeight: FontWeight.w600,
-    fontFeatures: [FontFeature.tabularFigures()],
-    shadows: [Shadow(color: Color(0x99000000), blurRadius: 3)],
-  );
 
   Widget _toolbar(BuildContext context, double position) {
     final colors = Theme.of(context).colorScheme;
     final state = _session.player.state;
     final playing = state.playing;
     final ready = _session.ready;
-    final sleeping = _session.sleepAt != null || _session.sleepAtEpisodeEnd;
     return Row(
       children: [
         _icon(
@@ -690,24 +658,6 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
             '倍速',
             ready ? () => _open(_Popup.speed) : null,
             bold: true,
-          ),
-        ),
-        _popupTarget(
-          _Popup.fit,
-          _icon(
-            Icons.aspect_ratio_rounded,
-            '画面比例 · ${_session.videoFit.label}',
-            () => _open(_Popup.fit),
-            color: _session.videoFit == VideoFit.auto ? null : colors.primary,
-          ),
-        ),
-        _popupTarget(
-          _Popup.sleep,
-          _icon(
-            sleeping ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-            sleepTimerLabel(_session),
-            () => _open(_Popup.sleep),
-            color: sleeping ? colors.primary : null,
           ),
         ),
         if (!widget.touch)
@@ -822,20 +772,6 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
         selected: _session.quality,
         label: (value) => value == 0 ? '自动' : '${value}P',
         onSelected: (value) => _change(() => _session.setQuality(value)),
-      ),
-      _Popup.fit => _options<VideoFit>(
-        values: VideoFit.values,
-        selected: _session.videoFit,
-        label: (value) => value.label,
-        onSelected: (value) => _change(() => _session.setVideoFit(value)),
-      ),
-      _Popup.sleep => _options<SleepChoice>(
-        values: sleepChoices,
-        selected: sleepChoices.firstWhere(
-          (choice) => choice.selected(_session),
-        ),
-        label: (value) => value.label,
-        onSelected: (value) => _change(() async => value.apply(_session)),
       ),
     };
     return Material(

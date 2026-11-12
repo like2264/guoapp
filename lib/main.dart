@@ -15,7 +15,6 @@ import 'diary_service.dart';
 import 'local_files.dart';
 import 'local_store.dart';
 import 'picture_in_picture.dart';
-import 'portable_data.dart';
 import 'ui/app.dart';
 import 'ui/theme/app_theme.dart';
 import 'window_frame.dart';
@@ -28,8 +27,7 @@ Future<void> main() async {
     SystemChrome.setSystemUIOverlayStyle(AppTheme.systemBars(Brightness.dark));
   }
   if (Platform.isWindows) {
-    enablePortableData();
-    if (portableDataPath == null) await migrateWindowsData();
+    await migrateWindowsData();
     await windowManager.ensureInitialized();
     await rememberWindowFrame();
   }
@@ -91,7 +89,6 @@ class _AppBootstrapState extends State<AppBootstrap>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    DiaryService.add('[App] 生命周期：${state.name}');
     if (state == AppLifecycleState.resumed && Platform.isAndroid) {
       unawaited(_refreshDevice());
     }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -93,14 +94,23 @@ func (log *diagnosticLog) rotate() error {
 	return nil
 }
 
+func redactConfiguredString(cfg *Config, value string) string {
+	for _, secret := range []string{cfg.Token, cfg.AESKeyHex, cfg.InterfaceKey, cfg.ParamKey, cfg.ParamIV} {
+		if secret = strings.TrimSpace(secret); secret != "" {
+			value = strings.ReplaceAll(value, secret, "[redacted]")
+		}
+	}
+	return redactErrorString(value)
+}
+
 func (downloader *Downloader) recordDiagnostic(event diagnosticEvent) {
 	if downloader == nil || downloader.diagnostics == nil {
 		return
 	}
-	event.Message = Truncate(redactErrorString(event.Message), 4096)
+	event.Message = truncate(redactConfiguredString(&downloader.cfg, event.Message), 4096)
 	if err := downloader.diagnostics.write(event); err != nil {
 		downloader.diagnostics.warningOnce.Do(func() {
-			fmt.Fprintf(os.Stderr, "诊断日志保存失败：%v\n", PublicError(err))
+			fmt.Fprintf(os.Stderr, "诊断日志保存失败：%v\n", publicError(err))
 		})
 	}
 }

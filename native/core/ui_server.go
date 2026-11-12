@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func CoverPathFromAny(v any) string {
+func coverPathFromAny(v any) string {
 	switch x := v.(type) {
 	case nil:
 		return ""
@@ -31,13 +31,13 @@ func CoverPathFromAny(v any) string {
 		return strings.TrimLeft(s, "/")
 	case map[string]any:
 		for _, key := range []string{"url", "src", "path", "cover", "coverUrl", "cover_url", "image", "pic", "poster"} {
-			if s := CoverPathFromAny(x[key]); s != "" {
+			if s := coverPathFromAny(x[key]); s != "" {
 				return s
 			}
 		}
 	case []any:
 		for _, value := range x {
-			if address := CoverPathFromAny(value); address != "" {
+			if address := coverPathFromAny(value); address != "" {
 				return address
 			}
 		}
@@ -45,8 +45,8 @@ func CoverPathFromAny(v any) string {
 	return ""
 }
 
-func SourceFromDramaID(id string) string {
-	if source, _, ok := SplitProviderDramaID(id); ok {
+func sourceFromDramaID(id string) string {
+	if source, _, ok := splitProviderDramaID(id); ok {
 		return source
 	}
 	return ""

@@ -3,12 +3,10 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 )
@@ -32,16 +30,7 @@ func newCDNTransport(base *http.Transport, resolver *dnsResolver) *cdnTransport 
 
 func (transport *cdnTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	if request.URL.Scheme != "https" || (!protectedCDNHost(request.URL.Hostname()) && request.Context().Value(nativeCoverNetworkKey{}) != true) || (request.Method != http.MethodGet && request.Method != http.MethodHead) {
-		response, err := transport.base.RoundTrip(request)
-		if err == nil || !blockedHostLookup(request, err) {
-			return response, err
-		}
-		if transport.base.Proxy != nil {
-			if proxyURL, proxyErr := transport.base.Proxy(request); proxyErr != nil || proxyURL != nil {
-				return nil, err
-			}
-		}
-		return transport.roundTripResolved(request, nil, request.URL.Host, []string{""}, map[string]bool{}, err)
+		return transport.base.RoundTrip(request)
 	}
 	var proxyURL *url.URL
 	var err error
@@ -75,10 +64,8 @@ func (transport *cdnTransport) RoundTrip(request *http.Request) (*http.Response,
 	if request.Context().Err() != nil {
 		return nil, request.Context().Err()
 	}
-	return transport.roundTripResolved(request, proxyURL, routeKey, []string{dnsAlternateSubnet, ""}, tried, err)
-}
-
-func (transport *cdnTransport) roundTripResolved(request *http.Request, proxyURL *url.URL, routeKey string, subnets []string, tried map[string]bool, lastErr error) (*http.Response, error) {
+	lastErr := err
+	subnets := []string{dnsAlternateSubnet, ""}
 	for _, subnet := range subnets {
 		entry, lookupErr := transport.resolver.lookupEntry(request.Context(), request.URL.Hostname(), subnet)
 		if lookupErr != nil {
@@ -92,7 +79,7 @@ func (transport *cdnTransport) roundTripResolved(request *http.Request, proxyURL
 				continue
 			}
 			tried[address] = true
-			response, err := transport.roundTripAddress(request, proxyURL, routeKey, address)
+			response, err = transport.roundTripAddress(request, proxyURL, routeKey, address)
 			if err == nil {
 				transport.mu.Lock()
 				transport.preferred[routeKey] = cdnRoute{address: address, expires: entry.expires}
@@ -105,7 +92,7 @@ func (transport *cdnTransport) roundTripResolved(request *http.Request, proxyURL
 			lastErr = err
 		}
 	}
-	return nil, fmt.Errorf("资源 %s 连接失败（已尝试备用 DNS 地址）: %w", request.URL.Hostname(), PublicError(lastErr))
+	return nil, fmt.Errorf("资源 %s 连接失败（已尝试备用 DNS 地址）: %w", request.URL.Hostname(), publicError(lastErr))
 }
 
 func (transport *cdnTransport) roundTripAddress(request *http.Request, proxyURL *url.URL, routeKey, address string) (*http.Response, error) {
@@ -116,13 +103,6 @@ func (transport *cdnTransport) roundTripAddress(request *http.Request, proxyURL 
 		upstream.Host = request.URL.Host
 	}
 	upstream.URL.Host = address
-	if request.Body != nil && request.Body != http.NoBody {
-		body, err := request.GetBody()
-		if err != nil {
-			return nil, err
-		}
-		upstream.Body = body
-	}
 	if port := request.URL.Port(); port != "" {
 		upstream.URL.Host = net.JoinHostPort(address, port)
 	}
@@ -207,24 +187,4 @@ func (transport *cdnTransport) CloseIdleConnections() {
 		delete(transport.transports, key)
 	}
 	transport.preferred = map[string]cdnRoute{}
-}
-
-func blockedHostLookup(request *http.Request, err error) bool {
-	host := request.URL.Hostname()
-	if net.ParseIP(host) != nil || strings.EqualFold(host, "localhost") {
-		return false
-	}
-	if request.Body != nil && request.Body != http.NoBody && request.GetBody == nil {
-		return false
-	}
-	var lookupErr *net.DNSError
-	if errors.As(err, &lookupErr) {
-		return lookupErr.IsNotFound
-	}
-	var dialErr *net.OpError
-	if !errors.As(err, &dialErr) || dialErr.Op != "dial" {
-		return false
-	}
-	address, ok := dialErr.Addr.(*net.TCPAddr)
-	return ok && (address.IP.IsUnspecified() || address.IP.IsLoopback())
 }

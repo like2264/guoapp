@@ -2,7 +2,7 @@ package core
 
 import "fmt"
 
-func UniqueChapters(chapters []Chapter) []Chapter {
+func uniqueChapters(chapters []Chapter) []Chapter {
 	seen := map[string]bool{}
 	var out []Chapter
 	for i, ch := range chapters {

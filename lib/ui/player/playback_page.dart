@@ -28,7 +28,6 @@ class PlaybackPage extends StatefulWidget {
 
 class _PlaybackPageState extends State<PlaybackPage> {
   final _padFullscreen = ValueNotifier(false);
-  bool _windowFullscreen = false;
   final _pageScope = FocusScopeNode(debugLabel: 'playbackPage');
   final _pip = PictureInPicture.instance;
   late bool _wideVideo = _measure();
@@ -152,24 +151,6 @@ class _PlaybackPageState extends State<PlaybackPage> {
     if (mounted) Navigator.pop(context);
   }
 
-  KeyEventResult _key(FocusNode _, KeyEvent event) {
-    final key = event.logicalKey;
-    final size = MediaQuery.sizeOf(context);
-    final form = AppScope.formFactorOf(context);
-    if (!desktopPlatform ||
-        form != FormFactor.window && form != FormFactor.pad ||
-        _padFullscreen.value ||
-        _windowFullscreen ||
-        size.width > size.height ||
-        key != LogicalKeyboardKey.f11 &&
-            key != LogicalKeyboardKey.enter &&
-            key != LogicalKeyboardKey.numpadEnter) {
-      return KeyEventResult.ignored;
-    }
-    if (event is KeyDownEvent) _padFullscreen.value = true;
-    return KeyEventResult.handled;
-  }
-
   void _padFullscreenChanged() {
     _applyPadFullscreen(_padFullscreen.value);
     setState(() {});
@@ -202,8 +183,6 @@ class _PlaybackPageState extends State<PlaybackPage> {
       children: [
         FocusScope(
           node: _pageScope,
-          autofocus: true,
-          onKeyEvent: _key,
           child: Offstage(
             offstage: shown,
             child: MediaQuery(
@@ -242,13 +221,11 @@ class _PlaybackPageState extends State<PlaybackPage> {
         ),
         FormFactor.pad => _padPage(context, mini),
         FormFactor.window
-            when !_windowFullscreen &&
-                (_padFullscreen.value || size.width <= size.height) =>
+            when _padFullscreen.value || size.width <= size.height =>
           _padPage(context, mini),
         FormFactor.window => PlayerPage(
           store: widget.store,
           handle: widget.handle,
-          onWindowFullscreen: (value) => _windowFullscreen = value,
           onMiniWindow: mini,
         ),
         FormFactor.television => TelevisionPlayerPage(handle: widget.handle),
