@@ -208,7 +208,7 @@ jobs:
 
   ios:
     needs: prepare
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 60
     strategy:
       fail-fast: false
