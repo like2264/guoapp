@@ -2,7 +2,9 @@ name: Upgrade base to author 1.0.8
 
 # 一次性工作流：把仓库整体替换成作者 1.0.8 全量代码（含 6 个站源 + 精准搜索）。
 # 用法：仓库根目录放 base-1.0.14.tar.gz，然后手动运行本工作流。
-# v3：先探测 token 写权限，再把推送报错写进运行摘要，失败原因一眼可见。
+# v4：修复 v3 的 bug —— GitHub 不会自动把 GITHUB_TOKEN 注入环境变量，
+#     v3 里 "${GITHUB_TOKEN}" 在 set -u 下直接报 unbound variable，0 秒就退出。
+#     v4 显式声明 GH_TOKEN，并用 http.extraheader 推送（URL 里不出现 token）。
 
 on:
   workflow_dispatch:
@@ -13,47 +15,54 @@ permissions:
 jobs:
   upgrade:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: 探测写权限
         run: |
-          set -uo pipefail
-          echo "远端：$(git remote get-url origin)"
-          echo "当前分支：$(git rev-parse --abbrev-ref HEAD)"
-          echo "HEAD：$(git rev-parse --short HEAD)"
-          code=$(curl -s -o /tmp/probe.json -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          set -o pipefail
+          echo "仓库：${REPO}"
+          echo "HEAD：$(git rev-parse --short HEAD)  $(git rev-parse --abbrev-ref HEAD)"
+
+          code=$(curl -sS -o /tmp/probe.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs" \
-            -d "{\"ref\":\"refs/heads/perm-probe\",\"sha\":\"${GITHUB_SHA}\"}")
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/git/refs" \
+            -d "{\"ref\":\"refs/heads/perm-probe\",\"sha\":\"${GITHUB_SHA}\"}" 2>/dev/null) || code="000"
           echo "创建测试分支 perm-probe → HTTP ${code}"
-          cat /tmp/probe.json
+
           if [ "$code" = "201" ]; then
-            curl -s -o /dev/null -X DELETE \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs/heads/perm-probe"
+            curl -sS -o /dev/null -X DELETE \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${REPO}/git/refs/heads/perm-probe" || true
             echo "已删除测试分支（token 具备写权限）"
           fi
+
           {
             echo "### 写权限探测"
             echo ""
-            echo "- 远端：$(git remote get-url origin)"
             echo "- 尝试创建测试分支 perm-probe → HTTP **${code}**"
-            echo "- 说明：201 = 有写权限；403/404 = 只读，需要改 Workflow permissions"
+            echo "- 201 = 有写权限；403/404 = 只读"
             echo ""
             echo '```json'
-            head -c 600 /tmp/probe.json
+            head -c 400 /tmp/probe.json 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 解压到临时目录并校验
         run: |
           set -euo pipefail
-          test -f base-1.0.14.tar.gz || { echo "仓库根目录找不到 base-1.0.14.tar.gz，已中止"; exit 1; }
+          test -f base-1.0.14.tar.gz || { echo "仓库根目录找不到 base-1.0.14.tar.gz，已中止（仓库未被修改）"; exit 1; }
           cp base-1.0.14.tar.gz /tmp/base.tar.gz
           rm -rf /tmp/base
           mkdir -p /tmp/base
@@ -84,25 +93,29 @@ jobs:
 
       - name: 提交并推送
         run: |
-          set -uo pipefail
+          set -o pipefail
           git config user.name "base-upgrade-bot"
           git config user.email "base-upgrade-bot@users.noreply.github.com"
           git add -A
-          staged=$(git diff --cached --name-only | wc -l)
+          staged=$(git diff --cached --name-only | wc -l | tr -d ' ')
           echo "暂存变更条数：${staged}"
-          git diff --cached --name-only | head -15
+          git diff --cached --name-only | head -20
+
           {
+            echo ""
             echo "### 提交阶段"
             echo ""
             echo "- 暂存变更条数：${staged}"
-            echo "- HEAD 分支：$(git rev-parse --abbrev-ref HEAD)"
           } >> "$GITHUB_STEP_SUMMARY"
+
           if [ "$staged" = "0" ]; then
-            echo "没有变更可提交，跳过" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "没有变更可提交（可能上次已推送成功），跳过。" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+
           if ! git commit -m "chore!: 基线升级到作者 1.0.8 全量代码 + 6 站源 + 精准搜索 (1.0.14+114)" > /tmp/commit.log 2>&1; then
             {
+              echo ""
               echo "### 提交失败"
               echo '```'
               cat /tmp/commit.log
@@ -112,33 +125,46 @@ jobs:
             exit 1
           fi
           echo "提交成功：$(git rev-parse --short HEAD)"
-          git pull --rebase --autostash origin main > /tmp/pull.log 2>&1 || true
-          if ! git push origin HEAD:main > /tmp/push.log 2>&1; then
+
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          pushed=0
+          for attempt in 1 2 3; do
+            echo "--- 第 ${attempt} 次推送 ---"
+            if git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
+                 push "https://github.com/${REPO}.git" HEAD:main > /tmp/push.log 2>&1; then
+              pushed=1
+              break
+            fi
+            cat /tmp/push.log
+            if git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
+                 fetch "https://github.com/${REPO}.git" main > /tmp/fetch.log 2>&1; then
+              git rebase FETCH_HEAD > /tmp/rebase.log 2>&1 || { git rebase --abort >/dev/null 2>&1 || true; }
+            fi
+            sleep 3
+          done
+
+          if [ "$pushed" != "1" ]; then
             {
+              echo ""
               echo "### 推送失败"
               echo ""
               echo '```'
-              cat /tmp/push.log
+              cat /tmp/push.log 2>/dev/null
               echo '```'
               echo ""
-              echo "### 拉取输出（参考）"
+              echo "### 拉取/变基输出（参考）"
               echo '```'
-              cat /tmp/pull.log
+              cat /tmp/fetch.log /tmp/rebase.log 2>/dev/null
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            cat /tmp/push.log
-            cat /tmp/pull.log
+            cat /tmp/push.log 2>/dev/null
             exit 1
           fi
-          echo "推送成功"
-
-      - name: 写入运行摘要
-        run: |
+          echo "推送成功：HEAD → main"
           {
             echo ""
-            echo "### 基线升级完成"
+            echo "### 推送成功"
             echo ""
-            echo "- 版本号：$(grep -m1 '^version:' pubspec.yaml)"
             echo "- 提交：$(git rev-parse --short HEAD)"
             echo "- 变更统计：$(git show --stat --oneline HEAD | tail -1)"
             echo ""
