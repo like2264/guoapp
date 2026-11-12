@@ -1,0 +1,73 @@
+name: Upgrade base to author 1.0.8
+
+# 一次性工作流：把仓库整体替换成作者 1.0.8 全量代码（含 6 个站源 + 精准搜索）。
+# 用法：先把 base-1.0.14.tar.gz 传到仓库根目录，再手动运行本工作流。
+# 跑完之后本文件会保留，确认新版能正常出包后可以删除。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 解压到临时目录并校验
+        run: |
+          set -euo pipefail
+          test -f base-1.0.14.tar.gz || { echo "仓库根目录找不到 base-1.0.14.tar.gz，已中止"; exit 1; }
+          cp base-1.0.14.tar.gz /tmp/base.tar.gz
+          rm -rf /tmp/base
+          mkdir -p /tmp/base
+          tar xzf /tmp/base.tar.gz -C /tmp/base
+          for f in pubspec.yaml lib/main.dart native/go.work native/core/provider_registry.go \
+                   native/sources/go.mod native/sources/huangtao.go .gitignore \
+                   .github/workflows/build.yml scripts/app_build.py; do
+            if [ ! -f "/tmp/base/$f" ]; then
+              echo "归档里缺少 $f，已中止（仓库未被修改）"
+              exit 1
+            fi
+          done
+          echo "版本号: $(grep -m1 '^version:' /tmp/base/pubspec.yaml)"
+          echo "文件数: $(find /tmp/base -type f | wc -l)"
+          echo "core 下的 go 文件数: $(ls /tmp/base/native/core/*.go | wc -l)"
+
+      - name: 用新基线覆盖工作区
+        run: |
+          set -euo pipefail
+          cp .github/workflows/upgrade-base.yml /tmp/keep-workflow.yml
+          shopt -s dotglob
+          find . -maxdepth 1 -mindepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/base/. .
+          mkdir -p .github/workflows
+          cp /tmp/keep-workflow.yml .github/workflows/upgrade-base.yml
+          echo "覆盖完成，顶层内容："
+          ls -a
+
+      - name: 提交并推送
+        run: |
+          set -euo pipefail
+          git config user.name "base-upgrade-bot"
+          git config user.email "base-upgrade-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "chore!: 基线升级到作者 1.0.8 全量代码 + 6 站源 + 精准搜索 (1.0.14+114)"
+          git push origin HEAD:main
+
+      - name: 写入运行摘要
+        run: |
+          {
+            echo "### 基线升级完成"
+            echo ""
+            echo "- 版本号：$(grep -m1 '^version:' pubspec.yaml)"
+            echo "- 提交：$(git rev-parse --short HEAD)"
+            echo "- 变更统计：$(git show --stat --oneline HEAD | tail -1)"
+            echo ""
+            echo "下一步：到 Build app packages 点 Run workflow。"
+          } >> "$GITHUB_STEP_SUMMARY"
