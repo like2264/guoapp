@@ -90,6 +90,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   android:
+    if: ${{ false }}
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -208,7 +209,13 @@ jobs:
     needs: prepare
     runs-on: macos-latest
     timeout-minutes: 60
-    strategy: *editions
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - edition: zhenguojian
+            arguments: '--all-sources'
+            signing: ZHENGUOJIAN
     steps:
       - uses: actions/checkout@v4
       - *setup-python
@@ -239,6 +246,7 @@ jobs:
           retention-days: 14
 
   macos:
+    if: ${{ false }}
     needs: prepare
     runs-on: macos-latest
     timeout-minutes: 60
