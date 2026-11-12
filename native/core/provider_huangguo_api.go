@@ -13,13 +13,35 @@ import (
 
 const huangguoAISearchPageSize = 20
 
+// 黄果站点自 2026-11 改版后取流改为 POST /api/videos/{id}/playback，
+// 旧的 GET /play 仍在，但返回的 video_url / video_key / video_iv 全为空。
+// 下面按常见请求体逐个探测，命中即用。
+var huangguoAIPlaybackBodies = []string{
+	`{"ep":%d}`,
+	`{"ep_num":%d}`,
+	`{"episode":%d}`,
+	`{"ep":%d,"page_texts":0}`,
+}
+
+var huangguoAIPlaybackURLKeys = []string{"video_url", "play_url", "playback_url", "video_api", "m3u8", "url", "src"}
+
 func (d *Downloader) huangguoAIAPI(ctx context.Context, path string, out any) error {
-	envelope, err := json.Marshal(map[string]string{"method": http.MethodGet, "path": path, "body": "", "content_type": ""})
+	return d.huangguoAIRequest(ctx, http.MethodGet, path, "", "", out)
+}
+
+// huangguoAIRequest 通过站点自带的 edge 通道转发请求；method 与 body 都写在信封里。
+func (d *Downloader) huangguoAIRequest(ctx context.Context, method, path, body, contentType string, out any) error {
+	envelope, err := json.Marshal(map[string]string{
+		"method":       method,
+		"path":         path,
+		"body":         body,
+		"content_type": contentType,
+	})
 	if err != nil {
 		return err
 	}
 	base := d.providerBaseURL(sourceHuangguoAI)
-	body, err := d.fetchProviderRequest(ctx, base+"/api/edge/request", base+"/", envelope)
+	raw, err := d.fetchProviderRequest(ctx, base+"/api/edge/request", base+"/", envelope)
 	if err != nil {
 		return err
 	}
@@ -28,11 +50,14 @@ func (d *Downloader) huangguoAIAPI(ctx context.Context, path string, out any) er
 		Msg    string          `json:"msg"`
 		Data   json.RawMessage `json:"data"`
 	}
-	if err := json.Unmarshal([]byte(body), &reply); err != nil {
+	if err := json.Unmarshal([]byte(raw), &reply); err != nil {
 		return fmt.Errorf("黄果接口返回格式无效：%w", err)
 	}
 	if reply.Status != 1 {
 		return fmt.Errorf("黄果接口返回失败：%s", firstNonEmpty(reply.Msg, "未知错误"))
+	}
+	if out == nil {
+		return nil
 	}
 	if err := json.Unmarshal(reply.Data, out); err != nil {
 		return fmt.Errorf("黄果接口数据格式已变化：%w", err)
@@ -85,14 +110,98 @@ func (d *Downloader) fetchHuangguoAIPlayURL(ctx context.Context, sourceID string
 	if !rankingSourceID.MatchString(sourceID) || episode < 1 {
 		return "", errors.New("黄果集数无效")
 	}
-	var play struct {
+	base := d.providerBaseURL(sourceHuangguoAI)
+	escaped := url.PathEscape(sourceID)
+
+	// 1. 旧接口仍可用时优先使用，保持向后兼容。
+	var legacy struct {
 		VideoURL string `json:"video_url"`
 	}
-	path := fmt.Sprintf("/api/videos/%s/play?ep=%d&page_texts=0", url.PathEscape(sourceID), episode)
-	if err := d.huangguoAIAPI(ctx, path, &play); err != nil {
-		return "", err
+	legacyPath := fmt.Sprintf("/api/videos/%s/play?ep=%d&page_texts=0", escaped, episode)
+	if err := d.huangguoAIAPI(ctx, legacyPath, &legacy); err == nil {
+		if media := huangguoAIPlaybackMedia(base, legacy.VideoURL); media != "" {
+			return media, nil
+		}
 	}
-	return normalizeProviderMediaURL(d.providerBaseURL(sourceHuangguoAI)+"/", play.VideoURL), nil
+
+	// 2. 改版后的 POST 取流，按候选请求体逐个探测。
+	endpoint := "/api/videos/" + escaped + "/playback"
+	var lastErr error
+	for _, pattern := range huangguoAIPlaybackBodies {
+		var payload map[string]any
+		if err := d.huangguoAIRequest(ctx, http.MethodPost, endpoint, fmt.Sprintf(pattern, episode), "application/json", &payload); err != nil {
+			lastErr = err
+			continue
+		}
+		if media := huangguoAIPlaybackMedia(base, huangguoAIPlaybackURL(payload)); media != "" {
+			return media, nil
+		}
+	}
+	message := "黄果站点未返回播放地址（站点已改为 POST 取流）"
+	if lastErr != nil {
+		message += "：" + lastErr.Error()
+	}
+	return "", errors.New(message)
+}
+
+// huangguoAIPlaybackMedia 把接口给出的原始地址归一化成可播放地址；
+// 新版接口可能返回不带扩展名的地址，因此允许放宽到任意 http(s) 媒体地址。
+func huangguoAIPlaybackMedia(base, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if media := normalizeProviderMediaURL(base+"/", raw); media != "" {
+		return media
+	}
+	if resolved := resolveProviderURL(base+"/", raw); isProviderHTTPMediaURL(resolved) {
+		return resolved
+	}
+	return ""
+}
+
+// huangguoAIPlaybackURL 在返回体里递归找出播放地址，先认 .m3u8/.mp4，再放宽到已知字段名。
+func huangguoAIPlaybackURL(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	if media := huangguoAIPlaybackFromMap(payload, 0); media != "" {
+		return media
+	}
+	return ""
+}
+
+func huangguoAIPlaybackFromMap(row map[string]any, depth int) string {
+	if depth > 3 {
+		return ""
+	}
+	for _, key := range huangguoAIPlaybackURLKeys {
+		value := strings.TrimSpace(mapString(row, key))
+		lower := strings.ToLower(value)
+		if strings.Contains(lower, ".m3u8") || strings.Contains(lower, ".mp4") {
+			return value
+		}
+	}
+	if streams, ok := row["streams"].(map[string]any); ok {
+		for _, key := range []string{"main", "hd", "sd", "url"} {
+			if value := strings.TrimSpace(mapString(streams, key)); value != "" {
+				return value
+			}
+		}
+	}
+	for _, key := range huangguoAIPlaybackURLKeys {
+		if value := strings.TrimSpace(mapString(row, key)); isProviderHTTPMediaURL(value) {
+			return value
+		}
+	}
+	for _, value := range row {
+		if child, ok := value.(map[string]any); ok {
+			if media := huangguoAIPlaybackFromMap(child, depth+1); media != "" {
+				return media
+			}
+		}
+	}
+	return ""
 }
 
 func (d *Downloader) searchHuangguoAI(ctx context.Context, page int, query string) ([]Drama, bool, error) {
