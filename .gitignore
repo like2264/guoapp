@@ -41,3 +41,5 @@ venv/
 Thumbs.db
 desktop.ini
 .claude/settings.local.json
+
+/guoapp-sources/
