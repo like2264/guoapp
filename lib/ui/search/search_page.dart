@@ -40,6 +40,7 @@ class _SearchPageState extends State<SearchPage> {
   final _focus = FocusNode();
   late AppRepository _repository;
   late SourceCatalog _catalog;
+  GlobalSearch? _global;
   DramaFeed? _results;
   String _submitted = '';
   List<String> _suggestions = const [];
@@ -47,14 +48,7 @@ class _SearchPageState extends State<SearchPage> {
   int _suggestion = 0;
   final _shownSuggestions = <Object>{};
   bool _ready = false;
-  bool _global = false;
-
-  List<SourceSite> get _globalSources => [
-    for (final site in widget.store.sources)
-      if (site.onlineSearch) site,
-  ];
-
-  bool get _suggests => !_global && widget.source.searchSuggestions;
+  bool _allSources = false;
 
   @override
   void didChangeDependencies() {
@@ -63,6 +57,10 @@ class _SearchPageState extends State<SearchPage> {
     _ready = true;
     _repository = AppScope.of(context).repository;
     _catalog = SourceCatalog(_repository, widget.source);
+    _global = GlobalSearch(_repository, [
+      for (final site in SourceSite.values)
+        if (site.pagedSearch) site,
+    ]);
     if (widget.query.trim().isNotEmpty) _submit(widget.query);
   }
 
@@ -91,11 +89,13 @@ class _SearchPageState extends State<SearchPage> {
     _suggestion++;
     unawaited(widget.store.rememberSearch(query).catchError((Object _) {}));
     _results?.dispose();
-    final global = _global ? GlobalSearch(_repository, _globalSources) : null;
     final results = _results = DramaFeed(
-      load: (page, _) => global == null
-          ? _catalog.search(query, page: page)
-          : global.search(query, page: page),
+      load: (page, _) => _allSources
+          ? (_global ?? GlobalSearch(_repository, const [])).search(
+              query,
+              page: page,
+            )
+          : _catalog.search(query, page: page),
     )..addListener(() => setState(() {}));
     unawaited(results.reload());
     setState(() {
@@ -104,11 +104,29 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
+  void _toggleScope() {
+    final next = !_allSources;
+    setState(() => _allSources = next);
+    if (_submitted.isNotEmpty) _submit(_submitted);
+  }
+
+  Widget _scopeChip() => FocusRing(
+    radius: 999,
+    child: FilterChip(
+      label: const Text('全站'),
+      selected: _allSources,
+      onSelected: (_) => _toggleScope(),
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      tooltip: '同时在所有支持在线搜索的站源里查找',
+    ),
+  );
+
   void _changed(String text) {
     _debounce?.cancel();
     final query = text.trim();
     final generation = ++_suggestion;
-    if (!_suggests || query.isEmpty) {
+    if (_allSources || !widget.source.searchSuggestions || query.isEmpty) {
       setState(() => _suggestions = const []);
       return;
     }
@@ -130,14 +148,14 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final field = SearchField(
-      hint: _global ? '在所有站源中搜索' : '在 ${widget.source.name} 中搜索',
+      hint: _allSources ? '在所有站源中搜索' : '在 ${widget.source.name} 中搜索',
       controller: _controller,
       focusNode: _focus,
       autofocus: widget.query.isEmpty,
       onChanged: _changed,
       onSubmitted: _submit,
       letterKeyboard: widget.store.televisionKeyboard,
-      matches: _suggests ? _repository.suggestions : null,
+      matches: widget.source.searchSuggestions ? _repository.suggestions : null,
     );
     if (AppScope.of(context).television) {
       return Scaffold(
@@ -154,7 +172,7 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   Expanded(child: field),
                   const SizedBox(width: 12),
-                  _globalToggle(),
+                  _scopeChip(),
                 ],
               ),
             ),
@@ -167,15 +185,13 @@ class _SearchPageState extends State<SearchPage> {
       appBar: AppBar(
         titleSpacing: 0,
         title: Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Row(
-            children: [
-              Expanded(child: field),
-              const SizedBox(width: 8),
-              _globalToggle(),
-            ],
-          ),
+          padding: const EdgeInsets.only(right: 4),
+          child: field,
         ),
+        actions: [Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Center(child: _scopeChip()),
+        )],
       ),
       body: SafeArea(
         top: false,
@@ -184,17 +200,6 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
-
-  Widget _globalToggle() => FilterChip(
-    label: const Text('全站'),
-    selected: _global,
-    visualDensity: VisualDensity.compact,
-    onSelected: (value) {
-      if (value == _global) return;
-      setState(() => _global = value);
-      if (_submitted.isNotEmpty) _submit(_submitted);
-    },
-  );
 
   Widget _body(BuildContext context) {
     final television = AppScope.of(context).television;
@@ -277,9 +282,6 @@ class _SearchPageState extends State<SearchPage> {
                 items: results.items,
                 autofocus: television,
                 heroScope: 'drama',
-                subtitleOf: _global
-                    ? (drama) => SourceSite.byId(drama.source).name
-                    : null,
                 onOpen: _open,
                 onMore: (drama) => quickFollow(context, widget.store, drama),
               ),
@@ -311,7 +313,7 @@ class _SearchPageState extends State<SearchPage> {
     if (recent.isEmpty) {
       return StatusView(
         key: const ValueKey('empty'),
-        title: _global ? '在所有站源中搜索' : '在 ${widget.source.name} 中搜索',
+        title: _allSources ? '在所有站源中搜索' : '在 ${widget.source.name} 中搜索',
         message: '输入剧名或关键词',
         icon: Icons.search_rounded,
       );
