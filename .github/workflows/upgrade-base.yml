@@ -2,6 +2,8 @@ name: Upgrade base to author 1.0.8
 
 # 一次性工作流：把仓库整体替换成作者 1.0.8 全量代码（含 6 个站源 + 精准搜索）。
 # 用法：仓库根目录放 base-1.0.14.tar.gz，然后手动运行本工作流。
+# v5：GitHub App 令牌没有 workflow 权限，提交里只要带了 .github/workflows/ 的任何改动
+#     （哪怕只是行尾规范化）就会被服务端拒绝推送。v5 在提交前把 workflow 目录恢复成仓库原版。
 # v4：修复 v3 的 bug —— GitHub 不会自动把 GITHUB_TOKEN 注入环境变量，
 #     v3 里 "${GITHUB_TOKEN}" 在 set -u 下直接报 unbound variable，0 秒就退出。
 #     v4 显式声明 GH_TOKEN，并用 http.extraheader 推送（URL 里不出现 token）。
@@ -97,6 +99,22 @@ jobs:
           git config user.name "base-upgrade-bot"
           git config user.email "base-upgrade-bot@users.noreply.github.com"
           git add -A
+
+          # GITHUB_TOKEN 是 GitHub App 的安装令牌，没有 workflow 权限，
+          # 任何对 .github/workflows/ 下的改动都会被服务端拒绝推送：
+          #   refusing to allow a GitHub App to create or update workflow ...
+          # 基线新增的 .gitattributes（* text=auto）会让 git 把 build.yml 重新算作改动，
+          # 但两者字节内容其实完全一致，所以直接保留仓库里的原版 workflow。
+          wf_reverted=$(git diff --cached --name-only -- .github/workflows | wc -l | tr -d ' ')
+          git reset -q HEAD -- .github/workflows 2>/dev/null || true
+          git checkout HEAD -- .github/workflows 2>/dev/null || true
+          echo "已保留仓库原有 workflow 文件（撤销 ${wf_reverted} 条改动）"
+
+          if [ -n "$(git diff --cached --name-only -- .github/workflows)" ]; then
+            echo "仍存在 workflow 变更，已中止（否则推送必被拒绝）"
+            exit 1
+          fi
+
           staged=$(git diff --cached --name-only | wc -l | tr -d ' ')
           echo "暂存变更条数：${staged}"
           git diff --cached --name-only | head -20
@@ -106,6 +124,7 @@ jobs:
             echo "### 提交阶段"
             echo ""
             echo "- 暂存变更条数：${staged}"
+            echo "- 保留仓库原版 workflow，撤销改动 ${wf_reverted} 条（GITHUB_TOKEN 无 workflow 权限）"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$staged" = "0" ]; then
