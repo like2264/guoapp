@@ -13,8 +13,9 @@ import (
 //	标题完全相同 > 标题以关键词开头 > 标题包含关键词 >
 //	标题拆词全命中 > 标签/分类命中 > 仅简介命中 > 完全不命中（剔除）
 //
-// 排序稳定，同分保持站源原本的顺序；如果整页都被判成不相关，则原样返回，
-// 避免出现「搜得到东西却一条都不给」这种更糟的体验。
+// 排序稳定，同分保持站源原本的顺序。整页都不相关时返回空列表：
+// 多个站源的搜索是向量检索，翻到后面整页都是同题材噪声，
+// 如果还「原样返回」，这些噪声会被一页页堆到用户面前。
 type searchRelevance int
 
 const (
@@ -49,7 +50,7 @@ func NativePreciseSearch(items []nativeDrama, query string) []nativeDrama {
 		scored = append(scored, scoredDrama{drama: item, score: score, order: index})
 	}
 	if len(scored) == 0 {
-		return items
+		return nil
 	}
 	sort.SliceStable(scored, func(i, j int) bool {
 		if scored[i].score != scored[j].score {

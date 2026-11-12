@@ -24,14 +24,14 @@ func TestNativePreciseSearchRanksAndDrops(t *testing.T) {
 	}
 }
 
-func TestNativePreciseSearchKeepsEverythingWhenNothingMatches(t *testing.T) {
+func TestNativePreciseSearchDropsPageWhenNothingMatches(t *testing.T) {
 	items := []nativeDrama{
 		{ID: "a:1", Title: "喜剧"},
 		{ID: "a:2", Title: "悲剧"},
 	}
 	got := NativePreciseSearch(items, "完全不存在")
-	if len(got) != len(items) {
-		t.Fatalf("expected fallback to original list, got %d", len(got))
+	if len(got) != 0 {
+		t.Fatalf("expected unrelated page to be dropped, got %d", len(got))
 	}
 }
 

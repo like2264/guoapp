@@ -499,14 +499,22 @@ func nativeDispatch(input nativeInput) (any, error) {
 
 // nativeCatalog 在搜索结果出口统一做一次精准排序与过滤，
 // 避免各站源的宽匹配把大量只在简介里提一句的剧塞进结果里。
+// 一旦某一页被整页判成不相关，就顺手把 hasMore 关掉：
+// 向量检索的后续页面几乎全是同题材噪声，继续翻页只会把无关作品喂给用户。
 func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput) (nativeCatalogResult, error) {
 	result, err := engine.nativeCatalogRaw(ctx, input)
 	if err != nil {
 		return result, err
 	}
-	if query := strings.TrimSpace(input.Query); query != "" {
-		result.Items = NativePreciseSearch(result.Items, query)
+	query := strings.TrimSpace(input.Query)
+	if query == "" {
+		return result, nil
 	}
+	filtered := NativePreciseSearch(result.Items, query)
+	if len(filtered) == 0 {
+		result.HasMore = false
+	}
+	result.Items = filtered
 	return result, nil
 }
 
