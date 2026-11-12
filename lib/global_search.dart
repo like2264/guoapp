@@ -3,6 +3,11 @@ import 'dart:math' as math;
 import 'core_bridge.dart';
 import 'models.dart';
 
+/// 全站搜索：一次查询所有「已启用 + 支持在线搜索」的站源，合并去重。
+///
+/// 并发度固定为 3，避免同时打十几个站点；某个站源失败不会影响其他站源出结果，
+/// 只有全部站源都失败时才把错误抛给界面。翻页时只向仍有下一页的站源继续请求，
+/// 已经翻到底的站源不再重复询问。
 class GlobalSearch {
   GlobalSearch(this.repository, this.sources);
   final AppRepository repository;
