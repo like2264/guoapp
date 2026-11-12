@@ -1,8 +1,8 @@
 name: Upgrade base to author 1.0.8
 
 # 一次性工作流：把仓库整体替换成作者 1.0.8 全量代码（含 6 个站源 + 精准搜索）。
-# 用法：先把 base-1.0.14.tar.gz 传到仓库根目录，再手动运行本工作流。
-# 跑完之后本文件会保留，确认新版能正常出包后可以删除。
+# 用法：仓库根目录放 base-1.0.14.tar.gz，然后手动运行本工作流。
+# v3：先探测 token 写权限，再把推送报错写进运行摘要，失败原因一眼可见。
 
 on:
   workflow_dispatch:
@@ -18,6 +18,37 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: 探测写权限
+        run: |
+          set -uo pipefail
+          echo "远端：$(git remote get-url origin)"
+          echo "当前分支：$(git rev-parse --abbrev-ref HEAD)"
+          echo "HEAD：$(git rev-parse --short HEAD)"
+          code=$(curl -s -o /tmp/probe.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs" \
+            -d "{\"ref\":\"refs/heads/perm-probe\",\"sha\":\"${GITHUB_SHA}\"}")
+          echo "创建测试分支 perm-probe → HTTP ${code}"
+          cat /tmp/probe.json
+          if [ "$code" = "201" ]; then
+            curl -s -o /dev/null -X DELETE \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs/heads/perm-probe"
+            echo "已删除测试分支（token 具备写权限）"
+          fi
+          {
+            echo "### 写权限探测"
+            echo ""
+            echo "- 远端：$(git remote get-url origin)"
+            echo "- 尝试创建测试分支 perm-probe → HTTP **${code}**"
+            echo "- 说明：201 = 有写权限；403/404 = 只读，需要改 Workflow permissions"
+            echo ""
+            echo '```json'
+            head -c 600 /tmp/probe.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 解压到临时目录并校验
         run: |
@@ -53,16 +84,58 @@ jobs:
 
       - name: 提交并推送
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git config user.name "base-upgrade-bot"
           git config user.email "base-upgrade-bot@users.noreply.github.com"
           git add -A
-          git commit -m "chore!: 基线升级到作者 1.0.8 全量代码 + 6 站源 + 精准搜索 (1.0.14+114)"
-          git push origin HEAD:main
+          staged=$(git diff --cached --name-only | wc -l)
+          echo "暂存变更条数：${staged}"
+          git diff --cached --name-only | head -15
+          {
+            echo "### 提交阶段"
+            echo ""
+            echo "- 暂存变更条数：${staged}"
+            echo "- HEAD 分支：$(git rev-parse --abbrev-ref HEAD)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$staged" = "0" ]; then
+            echo "没有变更可提交，跳过" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if ! git commit -m "chore!: 基线升级到作者 1.0.8 全量代码 + 6 站源 + 精准搜索 (1.0.14+114)" > /tmp/commit.log 2>&1; then
+            {
+              echo "### 提交失败"
+              echo '```'
+              cat /tmp/commit.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/commit.log
+            exit 1
+          fi
+          echo "提交成功：$(git rev-parse --short HEAD)"
+          git pull --rebase --autostash origin main > /tmp/pull.log 2>&1 || true
+          if ! git push origin HEAD:main > /tmp/push.log 2>&1; then
+            {
+              echo "### 推送失败"
+              echo ""
+              echo '```'
+              cat /tmp/push.log
+              echo '```'
+              echo ""
+              echo "### 拉取输出（参考）"
+              echo '```'
+              cat /tmp/pull.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/push.log
+            cat /tmp/pull.log
+            exit 1
+          fi
+          echo "推送成功"
 
       - name: 写入运行摘要
         run: |
           {
+            echo ""
             echo "### 基线升级完成"
             echo ""
             echo "- 版本号：$(grep -m1 '^version:' pubspec.yaml)"
