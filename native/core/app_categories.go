@@ -83,6 +83,8 @@ func validNativeCategory(source, category string) bool {
 		return validXduanjuCategory(category)
 	case sourceHuangtao:
 		return validHuangtaoCategory(category)
+	case sourceYesheai:
+		return validYesheaiCategory(category)
 	}
 	return false
 }
@@ -184,6 +186,12 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 	case sourceHuangtao:
 		var categories []nativeCategory
 		categories, err = d.fetchHuangtaoCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceYesheai:
+		var categories []nativeCategory
+		categories, err = d.fetchYesheaiCategories(ctx)
 		if err == nil {
 			all = append(all, categories...)
 		}
