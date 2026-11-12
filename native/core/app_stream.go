@@ -30,7 +30,7 @@ type nativeStreamAsset struct {
 }
 
 type nativeStreamSession struct {
-	credentials  *providerMediaCredentials
+	credentials  *MediaCredentials
 	mu           sync.Mutex
 	assets       map[string]nativeStreamAsset
 	referer      string
@@ -83,14 +83,14 @@ func newNativeStreamServer(d *Downloader) (*nativeStreamServer, error) {
 	return stream, nil
 }
 
-func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, string) {
+func (stream *nativeStreamServer) nativeOpen(media ProviderMedia) (string, string) {
 	tokenBytes := make([]byte, 24)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		panic(err)
 	}
 	token := hex.EncodeToString(tokenBytes)
-	ctx, cancel := context.WithCancel(providerMediaContext(context.Background(), media.credentials))
-	session := &nativeStreamSession{assets: map[string]nativeStreamAsset{}, referer: media.Referer, key: media.HLSKey, ctx: ctx, cancel: cancel, lastUsed: time.Now(), credentials: media.credentials, diagnosticID: nativeStreamID(token)}
+	ctx, cancel := context.WithCancel(providerMediaContext(context.Background(), media.Credentials))
+	session := &nativeStreamSession{assets: map[string]nativeStreamAsset{}, referer: media.Referer, key: media.HLSKey, ctx: ctx, cancel: cancel, lastUsed: time.Now(), credentials: media.Credentials, diagnosticID: nativeStreamID(token)}
 	stream.mu.Lock()
 	for id, old := range stream.sessions {
 		if time.Since(old.lastUsed) > 10*time.Minute {
@@ -186,7 +186,7 @@ func (stream *nativeStreamServer) nativeRewrite(token string, session *nativeStr
 				return ""
 			}
 			address := parsed.ResolveReference(relative).String()
-			if !isProviderHTTPMediaURL(address) {
+			if !IsProviderHTTPMediaURL(address) {
 				return ""
 			}
 			kind := "segment"
@@ -314,7 +314,7 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 		http.Error(writer, "媒体地址无效", http.StatusBadGateway)
 		return
 	}
-	upstream.Header.Set("User-Agent", userAgent)
+	upstream.Header.Set("User-Agent", UserAgent)
 	upstream.Header.Set("Referer", session.referer)
 	for _, name := range []string{"Range", "If-Range"} {
 		if value := request.Header.Get(name); value != "" {

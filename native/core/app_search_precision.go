@@ -28,14 +28,14 @@ const (
 )
 
 type scoredDrama struct {
-	drama nativeDrama
+	drama LibraryDrama
 	score searchRelevance
 	order int
 }
 
 // NativePreciseSearch 按相关度重排搜索结果，并剔除完全不相关的条目。
-func NativePreciseSearch(items []nativeDrama, query string) []nativeDrama {
-	keyword := nativeSearchText(query)
+func NativePreciseSearch(items []LibraryDrama, query string) []LibraryDrama {
+	keyword := NativeSearchText(query)
 	if keyword == "" || len(items) < 2 {
 		return items
 	}
@@ -57,41 +57,21 @@ func NativePreciseSearch(items []nativeDrama, query string) []nativeDrama {
 		}
 		return scored[i].order < scored[j].order
 	})
-	out := make([]nativeDrama, 0, len(scored))
+	out := make([]LibraryDrama, 0, len(scored))
 	for _, entry := range scored {
 		out = append(out, entry.drama)
 	}
 	return out
 }
 
-// nativeSearchText 把文本压成可比较的形式：去掉所有空白、全角转半角、拉丁字母转小写。
-func nativeSearchText(value string) string {
-	var builder strings.Builder
-	builder.Grow(len(value))
-	for _, r := range value {
-		switch r {
-		case ' ', '\t', '\n', '\r', '\v', '\f', '　':
-			continue
-		}
-		if r >= 0xFF01 && r <= 0xFF5E {
-			r -= 0xFEE0
-		}
-		if r >= 'A' && r <= 'Z' {
-			r += 'a' - 'A'
-		}
-		builder.WriteRune(r)
-	}
-	return builder.String()
-}
-
 func nativeSearchWords(query string) []string {
 	raw := strings.FieldsFunc(query, func(r rune) bool {
-		return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '　'
+		return r == ' ' || r == '\t' || r == '\n' || r == '　'
 	})
 	words := make([]string, 0, len(raw))
 	seen := map[string]bool{}
 	for _, word := range raw {
-		word = nativeSearchText(word)
+		word = NativeSearchText(word)
 		if word == "" || seen[word] {
 			continue
 		}
@@ -101,8 +81,8 @@ func nativeSearchWords(query string) []string {
 	return words
 }
 
-func nativeDramaRelevance(item nativeDrama, keyword string, words []string) searchRelevance {
-	title := nativeSearchText(item.Title)
+func nativeDramaRelevance(item LibraryDrama, keyword string, words []string) searchRelevance {
+	title := NativeSearchText(item.Title)
 	if title != "" {
 		switch {
 		case title == keyword:
@@ -117,11 +97,11 @@ func nativeDramaRelevance(item nativeDrama, keyword string, words []string) sear
 		}
 	}
 	for _, value := range append([]string{item.Category}, item.Tags...) {
-		if value = nativeSearchText(value); value != "" && strings.Contains(value, keyword) {
+		if value = NativeSearchText(value); value != "" && strings.Contains(value, keyword) {
 			return searchRelevanceMeta
 		}
 	}
-	if strings.Contains(nativeSearchText(item.Description), keyword) {
+	if strings.Contains(NativeSearchText(item.Description), keyword) {
 		return searchRelevanceIntro
 	}
 	return searchRelevanceNone

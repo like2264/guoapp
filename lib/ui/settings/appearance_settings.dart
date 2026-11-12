@@ -61,6 +61,14 @@ class AppearanceSettings extends StatelessWidget {
               },
             ),
             const Divider(indent: 16, endIndent: 16),
+            SwitchTile(
+              title: '纯黑深色模式',
+              subtitle: '深色时背景改为纯黑，适合 OLED 屏幕',
+              value: store.pureBlack,
+              onChanged: (value) =>
+                  saveSetting(context, () => store.setPureBlack(value)),
+            ),
+            const Divider(indent: 16, endIndent: 16),
             TileFocus(
               builder: (focusNode) => SwitchListTile(
                 focusNode: focusNode,
@@ -145,6 +153,16 @@ class AppearanceSettings extends StatelessWidget {
                 }
               },
             ),
+            if (!AppScope.of(context).television) ...[
+              const Divider(indent: 16, endIndent: 16),
+              SwitchTile(
+                title: '在主页底栏显示历史',
+                subtitle: '关闭后仍可在「我的」里打开观看记录',
+                value: store.historyTab,
+                onChanged: (value) =>
+                    saveSetting(context, () => store.setHistoryTab(value)),
+              ),
+            ],
             if (AppScope.of(context).television) ...[
               const Divider(indent: 16, endIndent: 16),
               SwitchTile(

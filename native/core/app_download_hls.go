@@ -99,8 +99,8 @@ func nativeDownloadAssetName(address, extension string) string {
 	return hex.EncodeToString(digest[:16]) + extension
 }
 
-func (manager *nativeDownloads) downloadBundle(ctx context.Context, media providerMedia, quality int) (nativeDownloadBundle, error) {
-	ctx = providerMediaContext(ctx, media.credentials)
+func (manager *nativeDownloads) downloadBundle(ctx context.Context, media ProviderMedia, quality int) (nativeDownloadBundle, error) {
+	ctx = providerMediaContext(ctx, media.Credentials)
 	bundle := nativeDownloadBundle{quality: media.Quality, playlists: map[string][]byte{}}
 	visited := map[string]string{}
 	pending := map[string]bool{}
@@ -171,7 +171,7 @@ func (manager *nativeDownloads) downloadBundle(ctx context.Context, media provid
 				if err != nil || len(data) != 16 {
 					return "", errors.New("内嵌视频密钥无效")
 				}
-			} else if !isProviderHTTPMediaURL(resolved) {
+			} else if !IsProviderHTTPMediaURL(resolved) {
 				return "", errors.New("分片地址不支持下载")
 			}
 			extension := strings.ToLower(path.Ext(relative.Path))

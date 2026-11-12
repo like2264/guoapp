@@ -13,7 +13,7 @@ import (
 
 func (d *Downloader) loadRankingCache() {
 	cache := &d.rankings
-	cache.pages, cache.pending = map[string]rankingPage{}, map[string]*rankingCall{}
+	cache.pages, cache.pending = map[string]RankingPage{}, map[string]*rankingCall{}
 	file, err := os.Open(filepath.Join(d.cfg.dataDir, "rankings.json"))
 	if err != nil {
 		return
@@ -23,7 +23,7 @@ func (d *Downloader) loadRankingCache() {
 	if err != nil || len(body) > 8<<20 {
 		return
 	}
-	var pages map[string]rankingPage
+	var pages map[string]RankingPage
 	if json.Unmarshal(body, &pages) != nil {
 		return
 	}
@@ -36,7 +36,7 @@ func (d *Downloader) loadRankingCache() {
 		}
 		valid = true
 		for _, item := range page.Items {
-			if sourceFromDramaID(item.Drama.ID) != board.Source || item.Rank < 1 {
+			if SourceFromDramaID(item.Drama.ID) != board.Source || item.Rank < 1 {
 				valid = false
 				break
 			}
@@ -70,21 +70,21 @@ func (engine *nativeEngine) nativeRanking(ctx context.Context, input nativeInput
 		return nil, err
 	}
 	type item struct {
-		Rank   int         `json:"rank"`
-		Drama  nativeDrama `json:"drama"`
-		Metric string      `json:"metric,omitempty"`
+		Rank   int          `json:"rank"`
+		Drama  LibraryDrama `json:"drama"`
+		Metric string       `json:"metric,omitempty"`
 	}
 	items := make([]item, 0, len(page.Items))
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	library := map[string]nativeDrama{}
+	library := map[string]LibraryDrama{}
 	for _, drama := range engine.catalogs[board.Source] {
 		library[drama.ID] = drama
 	}
 	for _, row := range page.Items {
-		drama := nativeNormalize(row.Drama)
+		drama := NativeNormalize(row.Drama)
 		if old, found := library[drama.ID]; found {
-			drama = mergeNativeDrama(old, drama)
+			drama = MergeNativeDrama(old, drama)
 		}
 		items = append(items, item{Rank: row.Rank, Drama: drama, Metric: row.Metric})
 	}

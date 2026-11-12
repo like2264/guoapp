@@ -20,11 +20,53 @@ type nativeCatalogState struct {
 
 type nativeCatalogDisk struct {
 	Version         int                                  `json:"version"`
-	Catalogs        map[string][]nativeDrama             `json:"catalogs"`
+	Catalogs        map[string][]LibraryDrama            `json:"catalogs"`
 	States          map[string]nativeCatalogState        `json:"states"`
-	Categories      map[string][]nativeCategory          `json:"categories,omitempty"`
-	HongguoApp      *hongguoCatalogState                 `json:"hongguoApp,omitempty"`
+	Categories      map[string][]Category                `json:"categories,omitempty"`
+	HongguoApp      json.RawMessage                      `json:"hongguoApp,omitempty"`
+	ProviderStates  map[string]json.RawMessage           `json:"providerStates,omitempty"`
 	Recommendations map[string]nativeRecommendationState `json:"recommendations,omitempty"`
+}
+
+func (engine *nativeEngine) commitProviderStateLocked(source string) {
+	source, _, _ = strings.Cut(source, "|")
+	p, ok := engine.downloader.provider(source)
+	if !ok {
+		return
+	}
+	stateful, ok := p.(CatalogStateful)
+	if !ok {
+		return
+	}
+	if engine.providerStates == nil {
+		engine.providerStates = map[string]json.RawMessage{}
+	}
+	if raw := stateful.CatalogState(); len(raw) > 0 {
+		engine.providerStates[p.Descriptor().ID] = raw
+	} else {
+		delete(engine.providerStates, p.Descriptor().ID)
+	}
+}
+
+func (engine *nativeEngine) restoreProviderStates(disk nativeCatalogDisk) {
+	if engine.downloader == nil {
+		return
+	}
+	states := disk.ProviderStates
+	if _, ok := states["hongguo"]; !ok && len(disk.HongguoApp) > 0 {
+		if states == nil {
+			states = map[string]json.RawMessage{}
+		}
+		states["hongguo"] = disk.HongguoApp
+	}
+	for source, raw := range states {
+		if p, ok := engine.downloader.provider(source); ok {
+			if stateful, ok := p.(CatalogStateful); ok {
+				stateful.RestoreCatalogState(raw)
+				engine.commitProviderStateLocked(source)
+			}
+		}
+	}
 }
 
 func (engine *nativeEngine) loadCatalogCache() {
@@ -53,21 +95,19 @@ func (engine *nativeEngine) loadCatalogCache() {
 		}
 		engine.categoryOptions = disk.Categories
 		engine.recommendations = make(map[string]nativeRecommendationState)
-		for genre, state := range disk.Recommendations {
-			if genre == state.Query.Genre && state.Query.validate() == nil && state.Page > 0 {
-				engine.recommendations[genre] = state
+		for key, state := range disk.Recommendations {
+			source, genre, current := strings.Cut(key, "|recommendation:")
+			if !current {
+				source, genre = "hongguo", key
+			}
+			if recommender, err := engine.recommender(source); err == nil && state.Page > 0 && recommender.ValidRecommendation(genre, state.Query) == nil {
+				engine.recommendations[nativeRecommendationKey(source, genre)] = state
 			}
 		}
-		engine.hongguoCatalog = cloneHongguoCatalogState(disk.HongguoApp)
-		if engine.downloader != nil {
-			engine.downloader.restoreHongguoCatalog(disk.HongguoApp)
-			if disk.HongguoApp != nil {
-				engine.hongguoCatalog = engine.downloader.hongguoCatalogSnapshot()
-			}
-		}
+		engine.restoreProviderStates(disk)
 		return
 	}
-	var legacy map[string][]nativeDrama
+	var legacy map[string][]LibraryDrama
 	if json.Unmarshal(body, &legacy) == nil && legacy != nil {
 		engine.catalogs = legacy
 		trimNativeCatalogs(engine.catalogs)
@@ -79,16 +119,16 @@ func (engine *nativeEngine) loadCatalogCache() {
 	}
 }
 
-func trimNativeCatalogs(catalogs map[string][]nativeDrama) {
+func trimNativeCatalogs(catalogs map[string][]LibraryDrama) {
 	for key, items := range catalogs {
 		if len(items) > nativeCatalogMaxItems {
-			catalogs[key] = append([]nativeDrama(nil), items[:nativeCatalogMaxItems]...)
+			catalogs[key] = append([]LibraryDrama(nil), items[:nativeCatalogMaxItems]...)
 		}
 	}
 }
 
-func migrateNativeDrama(drama nativeDrama) nativeDrama {
-	if drama.MetadataSchema == 0 && drama.Source == sourceHuangdou && drama.VIP != nil && !*drama.VIP {
+func migrateNativeDrama(drama LibraryDrama) LibraryDrama {
+	if drama.MetadataSchema == 0 && drama.Source == "huangdou" && drama.VIP != nil && !*drama.VIP {
 		drama.VIP = nil
 	}
 	drama.MetadataSchema = 1
@@ -99,9 +139,9 @@ func (engine *nativeEngine) nativeCached(source string) nativeCatalogResult {
 	source = canonicalProviderSource(source)
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	items := append([]nativeDrama{}, engine.catalogs[source]...)
+	items := append([]LibraryDrama{}, engine.catalogs[source]...)
 	for index := range items {
-		items[index].Cover = repairLegacyCoverURL(items[index])
+		items[index].Cover = engine.downloader.repairCover(items[index])
 	}
 	state, found := engine.catalogStates[source]
 	age := time.Since(state.UpdatedAt)
@@ -118,15 +158,15 @@ func (engine *nativeEngine) nativeCached(source string) nativeCatalogResult {
 	return result
 }
 
-func mergeNativeCatalog(first, second []nativeDrama) []nativeDrama {
-	items := append([]nativeDrama{}, first...)
+func mergeNativeCatalog(first, second []LibraryDrama) []LibraryDrama {
+	items := append([]LibraryDrama{}, first...)
 	indices := make(map[string]int, len(items))
 	for index, item := range items {
 		indices[item.ID] = index
 	}
 	for _, item := range second {
 		if index, found := indices[item.ID]; found {
-			items[index] = mergeNativeDrama(items[index], item)
+			items[index] = MergeNativeDrama(items[index], item)
 		} else {
 			indices[item.ID] = len(items)
 			items = append(items, item)
@@ -135,7 +175,7 @@ func mergeNativeCatalog(first, second []nativeDrama) []nativeDrama {
 	return items
 }
 
-func mergeNativeDrama(previous, fresh nativeDrama) nativeDrama {
+func MergeNativeDrama(previous, fresh LibraryDrama) LibraryDrama {
 	previous, fresh = migrateNativeDrama(previous), migrateNativeDrama(fresh)
 	if previous.ID != "" && fresh.ID != previous.ID {
 		return fresh
@@ -201,16 +241,16 @@ func (engine *nativeEngine) saveCatalogCache(source string, result *nativeCatalo
 	defer engine.mu.Unlock()
 	previous := engine.catalogs[source]
 	state := engine.catalogStates[source]
-	var items []nativeDrama
+	var items []LibraryDrama
 	if result.Page == 1 {
 		items = result.Items
 		if len(previous) > 0 {
-			old := make(map[string]nativeDrama, len(previous))
+			old := make(map[string]LibraryDrama, len(previous))
 			for _, item := range previous {
 				old[item.ID] = item
 			}
 			for index, item := range items {
-				items[index] = mergeNativeDrama(old[item.ID], item)
+				items[index] = MergeNativeDrama(old[item.ID], item)
 			}
 			fresh := make(map[string]bool, len(items))
 			for _, item := range items {
@@ -223,7 +263,8 @@ func (engine *nativeEngine) saveCatalogCache(source string, result *nativeCatalo
 			}
 			result.Items = items
 			result.Page = max(1, state.Page)
-			if source != sourceHongguo && state.Page > 1 {
+			descriptor, _ := registeredDescriptor(source)
+			if !descriptor.ContinuousFeed && state.Page > 1 {
 				result.HasMore = state.HasMore
 			}
 		}
@@ -234,9 +275,7 @@ func (engine *nativeEngine) saveCatalogCache(source string, result *nativeCatalo
 		}
 	}
 	engine.catalogs[source] = items
-	if result.hongguo != nil {
-		engine.hongguoCatalog = cloneHongguoCatalogState(result.hongguo)
-	}
+	engine.commitProviderStateLocked(source)
 	if result.Warning != "" {
 		result.Page = max(1, state.Page)
 		result.HasMore = true
@@ -262,7 +301,7 @@ func (engine *nativeEngine) saveCatalogCache(source string, result *nativeCatalo
 
 func (engine *nativeEngine) writeCatalogDiskLocked() error {
 	trimNativeCatalogs(engine.catalogs)
-	body, err := json.Marshal(nativeCatalogDisk{Version: 3, Catalogs: engine.catalogs, States: engine.catalogStates, Categories: engine.categoryOptions, HongguoApp: engine.hongguoCatalog, Recommendations: engine.recommendations})
+	body, err := json.Marshal(nativeCatalogDisk{Version: 3, Catalogs: engine.catalogs, States: engine.catalogStates, Categories: engine.categoryOptions, ProviderStates: engine.providerStates, Recommendations: engine.recommendations})
 	if err == nil && len(body) > nativeCatalogMaxBytes {
 		err = errNativeCatalogLimit
 	}
@@ -296,14 +335,14 @@ func writeNativeCacheFile(path string, data []byte) error {
 	return os.Rename(temporary.Name(), path)
 }
 
-func (engine *nativeEngine) saveDetailMetadata(drama nativeDrama) error {
+func (engine *nativeEngine) saveDetailMetadata(drama LibraryDrama) error {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	changed := false
 	for _, items := range engine.catalogs {
 		for index := range items {
 			if items[index].ID == drama.ID {
-				items[index] = mergeNativeDrama(items[index], drama)
+				items[index] = MergeNativeDrama(items[index], drama)
 				changed = true
 			}
 		}
