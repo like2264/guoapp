@@ -1,7 +1,7 @@
 # guoapp 定制版 · 功能移植清单
 
 > 用途：作者发布新版本时，从这份清单里勾选要保留/移植的功能，逐项套用即可，不必每次重做。
-> 最后更新：2026-11-13 · 对应版本 **1.0.17+117** · 仓库 `like2264/guoapp`
+> 最后更新：2026-11-13 · 对应版本 **1.0.18+118** · 仓库 `like2264/guoapp`
 
 ---
 
@@ -12,8 +12,8 @@
 | 内核版本 | 作者 **1.0.11+111**（旧架构） |
 | 架构特征 | `native/core` 有 **161 个 `.go`**；类型 `nativeDrama`；站源写在 `provider_*.go` |
 | 反例（新架构） | core 只有 **67 个 `.go`**；类型 `LibraryDrama`；多出 `provider_host.go` / `provider_registry.go` |
-| 站源数量 | **17 个**（见第 5 节） |
-| 版本号现状 | `pubspec.yaml` → `1.0.17+117` |
+| 站源数量 | **18 个**（见第 5 节） |
+| 版本号现状 | `pubspec.yaml` → `1.0.18+118` |
 | bundle id | `com.guoapp.phoenix`（可与作者版共存需改成 `com.guoapp.all`） |
 | 出包平台 | 只保留 iOS 真果鉴；android / windows / macos 全部关闭 |
 
@@ -40,6 +40,7 @@ curl -s "https://api.github.com/repos/<作者>/guoapp/git/trees/main?recursive=1
 | **P4** | 纯黑深色模式 | 作者 1.0.8 | `lib/ui/theme/app_theme.dart`<br>`lib/ui/app.dart`<br>`lib/local_store.dart`<br>`lib/ui/settings/appearance_settings.dart` | 🟡 可选 |
 | **P5** | 构建平台精简（只出 iOS 真果鉴） | 自研 | `.github/workflows/build.yml` | 🟡 建议保留 |
 | **P6** | 版本号 | — | `pubspec.yaml` | 每次必改 |
+| **P7** | 新增站源「夜社」(yesheai) | 自研 | `native/core/provider_yesheai.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`lib/models.dart` | 🟢 已加 |
 
 > ⚠️ 每次跑 CI 前**必须提升版本号**，否则 `prepare` 会因 `refs/tags/app-v<version>` 已存在而拦下整个运行。
 
@@ -72,7 +73,7 @@ arguments = ['--dart-define=ALL_SOURCES=' + str(self.all_sources).lower(),
 flags = '-s -w -X duanjuapp/native/core.buildAllSources=' + str(self.all_sources).lower()
 ```
 
-**验证**：装包后「关于」页名字是 **真果鉴**，站源列表出现 **17 个**。
+**验证**：装包后「关于」页名字是 **真果鉴**，站源列表出现 **18 个**。
 
 ---
 
@@ -246,6 +247,25 @@ SwitchTile(
 
 > ⚠️ `&editions` 锚点被 android / windows / ios / macos 共用，**不能直接改锚点**，否则会连 Windows 一起改。
 
+### P7 · 夜社短剧（yesheai.com）🟢
+
+标准苹果 CMS 站点，**没有加密、没有鉴权**，是最好接的一类。已实测跑通（列表 / 分类 / 搜索 / 详情 / 取流全绿）。
+
+| 用途 | 路径 |
+|---|---|
+| 分类列表 | `/filter/{type}.html`，翻页 `/filter/{type}/page/{n}.html`，**每页 30 条** |
+| 分类 id | 6 短剧、1 成人短剧、3 国产短剧、4 海外短剧、7 动漫、16 AI漫剧、20 网剧、21 电影、12 综艺（共 25 个，从首页导航解析） |
+| 搜索 | `/vod/search/wd/{关键词}.html`，翻页 `/vod/search/wd/{关键词}/page/{n}.html` |
+| 详情 | `/detail/{id}.html`，分集在 `a.ys-episode[data-episode]`，href `/play/{id}/1/{n}.html` |
+| 取流 | `/play/{id}/1/{ep}.html` 内联 `var player_aaaa={...}`，`encrypt:0` 时 `url` 就是 m3u8 直链 |
+
+**注意**
+
+1. 「全部」落在 type 6（短剧），因为站点没有跨分类聚合列表；其余分类由用户在分类栏自选
+2. 分页判断用「本页条数 ≥ 30」，站点末页不足 30 条
+3. `player_aaaa.encrypt` 若为 1/2，代码里已实现 base64 / 倒序 base64 兜底
+4. m3u8 与分片不需要 Referer 或 Cookie，URL 自带鉴权
+
 ---
 
 ## 3. 新增一个站源的标准步骤（以后要加站用）
@@ -280,7 +300,7 @@ SwitchTile(
    ├─ ① 先判断架构（第 0 节两条命令）
    │
    ├─ 同架构（1.0.11 系 / core 161 文件）
-   │     → 只把 P1–P6 逐项套到新代码上，一个文件一个文件比
+   │     → 只把 P1–P7 逐项套到新代码上，一个文件一个文件比
    │     → 站源文件（provider_*.go）不要覆盖，除非要修某站
    │
    └─ 新架构（1.0.8 系 / core 67 文件 / 有 provider_host.go）
@@ -299,7 +319,7 @@ SwitchTile(
 
 ---
 
-## 5. 17 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
+## 5. 18 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
 
 | # | id | 中文名 | 归属 |
 |---|---|---|---|
@@ -320,8 +340,9 @@ SwitchTile(
 | 15 | `huangguo-video` | 黄果视频 | 作者 |
 | 16 | `huangguoai` | 黄果 AI | 作者（播放逻辑由 P3 重写） |
 | 17 | `cloudfront` | 黄果旧版 | 作者（旧 API 剧库） |
+| 18 | `yesheai` | 夜社 | **自加** |
 
-> 17 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
+> 18 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
 
 ---
 
@@ -330,7 +351,7 @@ SwitchTile(
 | # | 检查项 | 期望 |
 |---|---|---|
 | 1 | 关于页版本号 | `1.0.17（117）` |
-| 2 | 站源总数 | 17 个 |
+| 2 | 站源总数 | 18 个 |
 | 3 | App 名称 | 真果鉴（不是红果鉴） |
 | 4 | 黄果 AI → 任意剧 → 第 1/2/3 集 | 能起播 |
 | 5 | 黄桃 → 搜「琼明」 | 只剩「琼明神女录」；搜不存在的词显示「没有找到」 |
@@ -360,6 +381,7 @@ SwitchTile(
 | `upload-115/restore-1.0.15.tar.gz` | 1.0.11 基线 + 精准搜索 + 纯黑（480 文件） | 完整回滚基线 |
 | `upload-119/` | `scripts/app_build.py`、`pubspec.yaml` | P1 修复（1.0.16+116） |
 | `upload-120/` | P2 + P3 的 4 个 core 文件 + `pubspec.yaml` | 1.0.17+117 |
+| `upload-121/` | 夜社站源（P7）+ `lib/models.dart` + `pubspec.yaml` | 1.0.18+118 |
 | `upload-117` / `upload-118` | 两版 `build.yml` | P5（118 是 `macos-15-intel` 终版） |
 | `scratchpad/base115full/` | 1.0.17 完整源码树 | 本地 `go vet` / `go test` 用 |
 
@@ -380,7 +402,7 @@ go build -o /dev/null ./core
 
 ## 9. 交接给其他 AI / 其他工具时的提示词模板
 
-> 背景：`main` 分支就是当前可用版本（1.0.17+117，commit `79134fb`）。别的 AI 拉 `main` 拿到的就是这一版源码。
+> 背景：`main` 分支就是当前可用版本（1.0.18+118）。别的 AI 拉 `main` 拿到的就是这一版源码。
 > **但「在 1.0.17 上改」不会自动成立**——它需要下面这些约束，否则最常见的两种事故是
 > 「顺手把作者新版全量覆盖进来」和「顺手改了 build.yml」，两者都会把三个补丁一起弄丢。
 
@@ -395,10 +417,10 @@ https://github.com/like2264/guoapp/upload/main   →   拖入 guoapp-移植清�
 ### 交接提示词（整段复制给对方）
 
 ```text
-仓库：https://github.com/like2264/guoapp ，main 分支，当前版本 pubspec 1.0.17+117，
+仓库：https://github.com/like2264/guoapp ，main 分支，当前版本 pubspec 1.0.18+118，
 已验证可用的基线 commit 是 79134fb。
 
-改之前先读仓库根目录的 guoapp-移植清单.md，里面有 6 个历史补丁（P1–P6）和 8 条 CI 坑。
+改之前先读仓库根目录的 guoapp-移植清单.md，里面有 7 个历史补丁（P1–P7）和 8 条 CI 坑。
 
 硬性约束（违反任意一条都会让包坏掉，且多数情况下不报错）：
 1. 不要动 .github/workflows/build.yml
@@ -417,7 +439,7 @@ https://github.com/like2264/guoapp/upload/main   →   拖入 guoapp-移植清�
 7. 改动必须能叠在 79134fb 之上增量生效，不要重写整个文件。
 
 交付要求：给出「改了哪几个文件 + 每个文件改了什么 + 怎么验证」，
-并说明是否影响 P1–P6 中的任何一项。
+并说明是否影响 P1–P7 中的任何一项。
 ```
 
 ### 改完之后必须走的四步
