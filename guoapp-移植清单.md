@@ -10,7 +10,7 @@
 | 项 | 值 |
 |---|---|
 | 内核版本 | 作者 **1.0.11+111**（旧架构） |
-| 架构特征 | `native/core` 有 **161 个 `.go`**；类型 `nativeDrama`；站源写在 `provider_*.go` |
+| 架构特征 | `native/core` 有 **167 个 `.go`**（作者 1.0.11 原版 161 + 本仓库新增 6 个：`provider_yesheai.go`、`provider_crdj.go`、`provider_crdj_test.go`、`provider_youzidj.go`、`provider_youzidj_test.go`、`provider_weburl.go`）；类型 `nativeDrama`；站源写在 `provider_*.go` |
 | 反例（新架构） | core 只有 **67 个 `.go`**；类型 `LibraryDrama`；多出 `provider_host.go` / `provider_registry.go` |
 | 站源数量 | **20 个**（见第 5 节） |
 | 版本号现状 | `pubspec.yaml` → `1.0.21+121` |
@@ -23,7 +23,7 @@
 # 存在 → 新架构（1.0.8+），本清单 P2/P3 需要改签名
 curl -s https://raw.githubusercontent.com/<作者>/guoapp/main/native/core/provider_host.go | head -1
 
-# 文件数量：67 ≈ 新架构，161 ≈ 旧架构
+# 文件数量：约 67 ≈ 新架构，160+ ≈ 旧架构（作者 1.0.11 原版 161，本仓库 167）
 curl -s "https://api.github.com/repos/<作者>/guoapp/git/trees/main?recursive=1" \
   | python -c "import sys,json;print(len([t for t in json.load(sys.stdin)['tree'] if t['path'].startswith('native/core/') and t['path'].endswith('.go')]))"
 ```
@@ -426,8 +426,8 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
    │
    ├─ ① 先判断架构（第 0 节两条命令）
    │
-   ├─ 同架构（1.0.11 系 / core 161 文件）
-   │     → 只把 P1–P9 逐项套到新代码上，一个文件一个文件比
+   ├─ 同架构（1.0.11 系 / core 161 文件，本仓库 167）
+   │     → 只把 P1–P10 逐项套到新代码上，一个文件一个文件比
    │     → 站源文件（provider_*.go）不要覆盖，除非要修某站
    │
    └─ 新架构（1.0.8 系 / core 67 文件 / 有 provider_host.go）
