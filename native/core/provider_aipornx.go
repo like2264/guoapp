@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,15 +18,15 @@ const (
 )
 
 var (
-	reAipornxCard = regexp.MustCompile(`(?is)<article\\b[^>]*class=["'][^"']*\\bvod-card\\b[^"']*["'][^>]*>(.*?)</article>`)
-	reAipornxDetailID = regexp.MustCompile(`(?i)/detail/(\\d+)/?`)
-	reAipornxPlay = regexp.MustCompile(`(?i)/play/(\\d+)-(\\d+)-(\\d+)/?`)
-	reAipornxEpisode = regexp.MustCompile(`(?is)<a\\b([^>]*)href=["']([^"']*/play/\\d+-\\d+-\\d+/?)["'][^>]*>(.*?)</a>`)
-	reAipornxNext = regexp.MustCompile(`(?i)href=["']([^"']*/page/(\\d+)/?)["']`)
+	reAipornxCard = regexp.MustCompile(`(?is)<article\b[^>]*class=["'][^"']*\bvod-card\b[^"']*["'][^>]*>(.*?)</article>`)
+	reAipornxDetailID = regexp.MustCompile(`(?i)/detail/(\d+)/?`)
+	reAipornxPlay = regexp.MustCompile(`(?i)/play/(\d+)-(\d+)-(\d+)/?`)
+	reAipornxEpisode = regexp.MustCompile(`(?is)<a\b([^>]*)href=["']([^"']*/play/\d+-\d+-\d+/?)["'][^>]*>(.*?)</a>`)
+	reAipornxNext = regexp.MustCompile(`(?i)href=["']([^"']*/page/(\d+)/?)["']`)
 )
 
 func aipornxTextByClass(block, class string) string {
-	re := regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*\\b` + regexp.QuoteMeta(class) + `\\b[^"']*["'][^>]*>(.*?)</[^>]+>`)
+	re := regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*\b` + regexp.QuoteMeta(class) + `\b[^"']*["'][^>]*>(.*?)</[^>]+>`)
 	match := re.FindStringSubmatch(block)
 	if len(match) < 2 {
 		return ""
@@ -34,7 +35,7 @@ func aipornxTextByClass(block, class string) string {
 }
 
 func aipornxAttr(block, attr string) string {
-	re := regexp.MustCompile(`(?is)\\b` + regexp.QuoteMeta(attr) + `=["']([^"']+)["']`)
+	re := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(attr) + `=["']([^"']+)["']`)
 	match := re.FindStringSubmatch(block)
 	if len(match) < 2 {
 		return ""
@@ -148,7 +149,7 @@ func (d *Downloader) searchAipornx(ctx context.Context, page int, query string) 
 
 func (d *Downloader) fetchAipornxDetail(ctx context.Context, sourceID string) (Drama, []Chapter, error) {
 	sourceID = strings.TrimSpace(sourceID)
-	if sourceID == "" || !regexp.MustCompile(`^\\d+$`).MatchString(sourceID) {
+	if sourceID == "" || !regexp.MustCompile(`^\d+$`).MatchString(sourceID) {
 		return Drama{}, nil, fmt.Errorf("影片编号无效")
 	}
 	base := d.providerBaseURL(sourceAipornx)
