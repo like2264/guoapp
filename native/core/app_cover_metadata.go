@@ -79,6 +79,9 @@ func (d *Downloader) nativeCoverAddress(ctx context.Context, drama nativeDrama) 
 	case sourceYesheai:
 		fresh, _, err := d.fetchYesheaiDetail(ctx, id)
 		return nativeNormalize(fresh).Cover, err
+	case sourceCrdj:
+		fresh, _, err := d.fetchCrdjDetail(ctx, id)
+		return nativeNormalize(fresh).Cover, err
 	case sourceCloudFront:
 		if !rankingSourceID.MatchString(id) {
 			return "", errors.New("无效的黄果剧集 ID")

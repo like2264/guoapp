@@ -57,6 +57,8 @@ func (d *Downloader) providerBaseURL(source string) string {
 		configured, fallback = d.cfg.HuangtaoURL, huangtaoBaseURL
 	case sourceYesheai:
 		configured, fallback = d.cfg.YesheaiURL, yesheaiBaseURL
+	case sourceCrdj:
+		configured, fallback = d.cfg.CrdjURL, crdjBaseURL
 	default:
 		fallback = "https://d2pypzndaqisk.cloudfront.net"
 	}
@@ -104,6 +106,12 @@ func providerSourceForURL(raw string) string {
 		return sourceHuangtao
 	case host == "yesheai.com" || host == "www.yesheai.com":
 		return sourceYesheai
+	case host == "91crdjai.com" || host == "www.91crdjai.com" ||
+		host == "91crdj.co" || host == "www.91crdj.co" ||
+		host == "91crdj.net" || host == "www.91crdj.net" ||
+		host == "aicrdj7.com" || host == "www.aicrdj7.com" ||
+		host == "crdj.net" || host == "www.crdj.net":
+		return sourceCrdj
 	default:
 		return ""
 	}
@@ -194,6 +202,9 @@ func (d *Downloader) resolveProviderMedia(ctx context.Context, task Task) (provi
 	}
 	if chapter.Source == sourceYesheai {
 		return d.resolveYesheaiMedia(ctx, task)
+	}
+	if chapter.Source == sourceCrdj {
+		return d.resolveCrdjMedia(ctx, task)
 	}
 	if strings.HasPrefix(chapter.VideoURL, "hongguo-cenc://") {
 		return d.resolveHongguoMedia(ctx, task)

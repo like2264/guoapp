@@ -41,6 +41,7 @@ type Config struct {
 	XduanjuURL       string
 	HuangtaoURL      string
 	YesheaiURL       string
+	CrdjURL          string
 	Token            string
 	AESKeyHex        string
 	InterfaceKey     string
@@ -701,6 +702,17 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 		result.HasMore = more
 		return result, nil
 	}
+	if query != "" && source == sourceCrdj {
+		items, more, err := d.fetchCrdjCatalogPage(ctx, page, "", query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
+		return result, nil
+	}
 	if query != "" && (source == sourceYeguo || source == sourceDSD || source == sourceJinguoDuanju || source == sourceJinguo) {
 		var items []Drama
 		var more bool
@@ -820,6 +832,8 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 		items, result.HasMore, err = d.fetchHuangtaoCatalogPage(ctx, page, category, "")
 	case sourceYesheai:
 		items, result.HasMore, err = d.fetchYesheaiCatalogPage(ctx, page, category, "")
+	case sourceCrdj:
+		items, result.HasMore, err = d.fetchCrdjCatalogPage(ctx, page, category, "")
 	case sourceHuangguoVideo:
 		address := fmt.Sprintf("%s/videos?page=%d", d.providerBaseURL(source), page)
 		if category != "" {
@@ -837,7 +851,7 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 	if err != nil && len(items) == 0 {
 		return result, err
 	}
-	if len(items) == 0 && page == 1 && source != sourceHuangju && source != sourceYeguo && source != sourceJinguoDuanju && source != sourceJinguo && source != sourceDSD && source != sourceSorani && source != sourceGuipian && source != sourceHanxiaoquan && source != sourceHeitao && source != sourceBeabox && source != sourceXduanju && source != sourceHuangtao && source != sourceYesheai {
+	if len(items) == 0 && page == 1 && source != sourceHuangju && source != sourceYeguo && source != sourceJinguoDuanju && source != sourceJinguo && source != sourceDSD && source != sourceSorani && source != sourceGuipian && source != sourceHanxiaoquan && source != sourceHeitao && source != sourceBeabox && source != sourceXduanju && source != sourceHuangtao && source != sourceYesheai && source != sourceCrdj {
 		return result, errors.New("站源暂未返回剧集，请稍后刷新")
 	}
 	if err != nil {
@@ -897,6 +911,8 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 		raw, chapters, err = engine.downloader.fetchHuangtaoDetail(ctx, sourceID)
 	case sourceYesheai:
 		raw, chapters, err = engine.downloader.fetchYesheaiDetail(ctx, sourceID)
+	case sourceCrdj:
+		raw, chapters, err = engine.downloader.fetchCrdjDetail(ctx, sourceID)
 	default:
 		title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
 	}

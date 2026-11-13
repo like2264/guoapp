@@ -35,6 +35,9 @@ func (d *Downloader) providerDramaWebURL(source, sourceID string) string {
 		route = "/video/" + url.PathEscape(sourceID) + "/"
 	case sourceYesheai:
 		route = "/detail/" + url.PathEscape(sourceID) + ".html"
+	case sourceCrdj:
+		// /duanju/{id}/ 会 301 到 /{真实类型}/{id}-{slug}/，不必记住类型与 slug。
+		route = "/duanju/" + url.PathEscape(sourceID) + "/"
 	case sourceHeitao:
 		route = "/index.php/vod/detail/id/" + url.PathEscape(sourceID) + ".html"
 	case sourceGuipian:
