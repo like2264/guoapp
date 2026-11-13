@@ -826,6 +826,8 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 			}
 			result.HasMore = len(rows) >= 30
 		}
+	case sourceAipornx:
+		items, result.HasMore, err = d.fetchAipornxCatalogPage(ctx, page, category)
 	case sourceHuangguoAI:
 		items, result.HasMore, err = d.fetchHuangguoAICatalogPage(ctx, page, category)
 	case sourceHuangju:
@@ -903,6 +905,8 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 	var chapters []Chapter
 	var err error
 	switch source {
+	case sourceAipornx:
+		raw, chapters, err = engine.downloader.fetchAipornxDetail(ctx, sourceID)
 	case sourceHuangguoAI:
 		raw, chapters, err = engine.downloader.fetchHuangguoAIDetail(ctx, sourceID)
 	case sourceHuangguoVideo:
