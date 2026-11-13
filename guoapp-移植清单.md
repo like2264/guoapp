@@ -1,7 +1,7 @@
 # guoapp 定制版 · 功能移植清单
 
 > 用途：作者发布新版本时，从这份清单里勾选要保留/移植的功能，逐项套用即可，不必每次重做。
-> 最后更新：2026-11-13 · 对应版本 **1.0.18+118** · 仓库 `like2264/guoapp`
+> 最后更新：2026-11-13 · 对应版本 **1.0.20+120** · 仓库 `like2264/guoapp`
 
 ---
 
@@ -12,8 +12,8 @@
 | 内核版本 | 作者 **1.0.11+111**（旧架构） |
 | 架构特征 | `native/core` 有 **161 个 `.go`**；类型 `nativeDrama`；站源写在 `provider_*.go` |
 | 反例（新架构） | core 只有 **67 个 `.go`**；类型 `LibraryDrama`；多出 `provider_host.go` / `provider_registry.go` |
-| 站源数量 | **18 个**（见第 5 节） |
-| 版本号现状 | `pubspec.yaml` → `1.0.18+118` |
+| 站源数量 | **19 个**（见第 5 节） |
+| 版本号现状 | `pubspec.yaml` → `1.0.20+120` |
 | bundle id | `com.guoapp.phoenix`（可与作者版共存需改成 `com.guoapp.all`） |
 | 出包平台 | 只保留 iOS 真果鉴；android / windows / macos 全部关闭 |
 
@@ -42,6 +42,7 @@ curl -s "https://api.github.com/repos/<作者>/guoapp/git/trees/main?recursive=1
 | **P6** | 版本号 | — | `pubspec.yaml` | 每次必改 |
 | **P7** | 新增站源「夜社」(yesheai) | 自研 | `native/core/provider_yesheai.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`lib/models.dart` | 🟢 已加 |
 | **P8** | 分类 410 容错 + X短剧单片详情 + 详情页「用浏览器打开」 | 自研 | `native/core/app_categories.go`<br>`native/core/provider_huangguo.go`<br>`native/core/provider_xduanju.go`<br>`native/core/provider_weburl.go`（新）<br>`native/core/app_runtime.go`<br>`native/core/app_catalog_cache.go`<br>`lib/models.dart`<br>`lib/ui/detail/detail_page.dart` | 🔴 必须 |
+| **P9** | 新增站源「91短剧」(crdj) | 自研 | `native/core/provider_crdj.go`（新）<br>`native/core/provider_crdj_test.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`native/core/provider_weburl.go`<br>`lib/models.dart` | 🟢 已加 |
 
 > ⚠️ 每次跑 CI 前**必须提升版本号**，否则 `prepare` 会因 `refs/tags/app-v<version>` 已存在而拦下整个运行。
 
@@ -74,7 +75,7 @@ arguments = ['--dart-define=ALL_SOURCES=' + str(self.all_sources).lower(),
 flags = '-s -w -X duanjuapp/native/core.buildAllSources=' + str(self.all_sources).lower()
 ```
 
-**验证**：装包后「关于」页名字是 **真果鉴**，站源列表出现 **18 个**。
+**验证**：装包后「关于」页名字是 **真果鉴**，站源列表出现 **19 个**。
 
 ---
 
@@ -327,11 +328,44 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 纯 App 接口的站源（红果、黄豆、DSD、琥珀、橘果、禁果、笔盒、黄果旧版）**返回空**，按钮不显示。
 主机优先用 `providerHosts[source]` 里最近成功落地的域名（黄果会轮换镜像），否则用 `providerBaseURL`。
 
+### P9 · 新增站源「91短剧」(crdj) 🟢
+
+站点 `91crdjai.com`，SSR 页面 + 同源 JSON 接口，**无加密、不需要 edge 桥**
+（首页 `window.__cloudfrontCompat.enabled = false`，所有 `/api/*` 直连即可）。
+
+| 能力 | 路径 |
+|---|---|
+| 全部 | `GET /api/videos?page={n}&size=20` → `data.items` + `data.pagination.pages` |
+| 搜索 | `GET /api/search?q={kw}&page={n}&size=20` → 同上 |
+| 分类 | `GET /{channel}/page/{n}/` SSR 卡片，每页 22 条 |
+| 详情 | `GET /api/videos/{id}` → title / cover / description / tags / breadcrumb |
+| 分集 | `GET /duanju/{id}/1/` → 301 到真实分集页，`<script id="playInitialData">` 的 `eps` 是权威数组 |
+| 播放 | `POST /api/videos/{id}/episodes/{n}/playback`，body `{}` → `data.streams.main`（m3u8） |
+
+三个关键设计：
+
+1. **sourceID 只用纯数字 id**。`GET /duanju/{任意数字id}/` 会自动 301 到
+   `/{真实类型}/{id}-{slug}/`，任意类型前缀都能被站点纠正，因此不需要记类型与 slug；
+   「用浏览器打开」按钮也直接给 `/duanju/{id}/`。
+2. **分类不能走 API**：`/api/videos?category=duanju` 与不传参数返回完全相同的 2848 条，
+   服务端会忽略 category，所以分类必须解析 HTML 卡片（`<a class="card">` + `data-track-item-id`）。
+   注意 `src` 是占位 gif，真实封面在 `data-src`。
+3. **分集三层兜底**：`playInitialData.eps` → 详情页 `.ep-grid` 里的 `/N/` 链接 → 合成第 1 集（单片）。
+   实测 8 个样本（含 68 集长剧）全部解析成功；分集页的 `playBase` 用来拼 PageURL 与 Referer。
+
+分类固定 4 个：`duanju` / `manju` / `zhenrenju` / `shipin`；标签榜、漫画、小说不属于剧集模型，不接。
+备用域名（`91crdj.co`、`91crdj.net`、`aicrdj7.com`、`crdj.net`）已写进
+`canonicalProviderSource` 与 `providerSourceForURL`，主域名失效时可在设置里改 `CrdjURL`。
+
+回归测试 `provider_crdj_test.go` 用脱敏骨架覆盖卡片 / JSON / 分集 / 详情 / POST 取流 / HLS 播放列表，
+`go test -tags=zhenguojian ./core/` 全绿。
+
 ---
 
 ## 3. 新增一个站源的标准步骤（以后要加站用）
 
-共 **8 个注册点**，漏一个就会出现「枚举里有、点进去空白」或「catalog 报内容分类无效」：
+共 **9 个注册点**，漏一个就会出现「枚举里有、点进去空白」或「catalog 报内容分类无效」
+（第 5 项只对红果 / 黄豆这类需要额外抓元数据的站源生效，普通站源跳过）：
 
 | # | 文件 | 改什么 |
 |---|---|---|
@@ -339,12 +373,13 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 | 2 | `native/core/provider_huangguo.go` | `canonicalProviderSource()` 加别名 case（含域名写法） |
 | 3 | `native/core/app_categories.go` | 3 处 `switch source`（分类列表 / 默认分类 / 分类校验） |
 | 4 | `native/core/app_cover_metadata.go` | 1 处 `switch source`（封面） |
-| 5 | `native/core/app_metadata.go` | 1 处 `switch source`（详情元数据） |
+| 5 | `native/core/app_metadata.go` | 仅红果 / 黄豆需要；其余站源被 `nativeNeedsExtraMetadata()` 提前放过，不用改 |
 | 6 | `native/core/app_runtime.go` | 4 处 `switch source`（catalog / detail / chapter / playback） |
 | 7 | `native/core/provider_media.go` | 加 `configured, fallback = d.cfg.XxxURL, xxxBaseURL`，并在 `app_runtime.go` 的 Config 结构体加字段 |
 | 8 | `lib/models.dart` | `restrictedValues` 加 `SourceSite('xxx', '中文名', '描述')`；支持在线搜索的还要加进 `pagedSearch` 的 `id ==` 链 |
+| 9 | `native/core/provider_weburl.go` | 网页详情页地址（1.0.19 新增，漏了就没有「用浏览器打开」按钮） |
 
-再补两样：
+再补两样（`provider_media.go` 里还要同步 `providerSourceForURL` 的 host 映射与 `resolveProviderMedia` 的分派）：
 
 - `native/core/provider_xxx.go` 实现文件（参考 `provider_xduanju.go` / `provider_huangtao.go`）
 - `native/core/provider_xxx_test.go` 单测
@@ -361,7 +396,7 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
    ├─ ① 先判断架构（第 0 节两条命令）
    │
    ├─ 同架构（1.0.11 系 / core 161 文件）
-   │     → 只把 P1–P7 逐项套到新代码上，一个文件一个文件比
+   │     → 只把 P1–P9 逐项套到新代码上，一个文件一个文件比
    │     → 站源文件（provider_*.go）不要覆盖，除非要修某站
    │
    └─ 新架构（1.0.8 系 / core 67 文件 / 有 provider_host.go）
@@ -380,7 +415,7 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 
 ---
 
-## 5. 18 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
+## 5. 19 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
 
 | # | id | 中文名 | 归属 |
 |---|---|---|---|
@@ -402,8 +437,9 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 | 16 | `huangguoai` | 黄果 AI | 作者（播放逻辑由 P3 重写） |
 | 17 | `cloudfront` | 黄果旧版 | 作者（旧 API 剧库） |
 | 18 | `yesheai` | 夜社 | **自加** |
+| 19 | `crdj` | 91短剧 | **自加** |
 
-> 18 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
+> 19 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
 
 ---
 
@@ -411,12 +447,14 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 
 | # | 检查项 | 期望 |
 |---|---|---|
-| 1 | 关于页版本号 | `1.0.17（117）` |
-| 2 | 站源总数 | 18 个 |
+| 1 | 关于页版本号 | `1.0.20（120）` |
+| 2 | 站源总数 | 19 个 |
 | 3 | App 名称 | 真果鉴（不是红果鉴） |
 | 4 | 黄果 AI → 任意剧 → 第 1/2/3 集 | 能起播 |
 | 5 | 黄桃 → 搜「琼明」 | 只剩「琼明神女录」；搜不存在的词显示「没有找到」 |
 | 6 | 设置 → 外观 | 有「纯黑深色模式」开关且生效 |
+| 7 | 91短剧 → 搜索 / 分类 / 播放 | 能搜到、能翻页、第 1 集能起播 |
+| 8 | 任意剧详情页右上角 | 有「在浏览器中打开」按钮 |
 
 ---
 
@@ -443,6 +481,8 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 | `upload-119/` | `scripts/app_build.py`、`pubspec.yaml` | P1 修复（1.0.16+116） |
 | `upload-120/` | P2 + P3 的 4 个 core 文件 + `pubspec.yaml` | 1.0.17+117 |
 | `upload-121/` | 夜社站源（P7）+ `lib/models.dart` + `pubspec.yaml` | 1.0.18+118 |
+| `upload-122/` | 分类 410 容错 + 单片详情 + 浏览器按钮（P8） | 1.0.19+119 |
+| `upload-123/` | 91短剧站源（P9）+ 回归测试 | 1.0.20+120 |
 | `upload-117` / `upload-118` | 两版 `build.yml` | P5（118 是 `macos-15-intel` 终版） |
 | `scratchpad/base115full/` | 1.0.17 完整源码树 | 本地 `go vet` / `go test` 用 |
 
@@ -463,7 +503,7 @@ go build -o /dev/null ./core
 
 ## 9. 交接给其他 AI / 其他工具时的提示词模板
 
-> 背景：`main` 分支就是当前可用版本（1.0.18+118）。别的 AI 拉 `main` 拿到的就是这一版源码。
+> 背景：`main` 分支就是当前可用版本（1.0.20+120）。别的 AI 拉 `main` 拿到的就是这一版源码。
 > **但「在 1.0.17 上改」不会自动成立**——它需要下面这些约束，否则最常见的两种事故是
 > 「顺手把作者新版全量覆盖进来」和「顺手改了 build.yml」，两者都会把三个补丁一起弄丢。
 
@@ -478,10 +518,10 @@ https://github.com/like2264/guoapp/upload/main   →   拖入 guoapp-移植清�
 ### 交接提示词（整段复制给对方）
 
 ```text
-仓库：https://github.com/like2264/guoapp ，main 分支，当前版本 pubspec 1.0.18+118，
-已验证可用的基线 commit 是 79134fb。
+仓库：https://github.com/like2264/guoapp ，main 分支，当前版本 pubspec 1.0.20+120，
+已验证可用的基线 commit 是 a277b516。
 
-改之前先读仓库根目录的 guoapp-移植清单.md，里面有 7 个历史补丁（P1–P7）和 8 条 CI 坑。
+改之前先读仓库根目录的 guoapp-移植清单.md，里面有 9 个历史补丁（P1–P9）和 8 条 CI 坑。
 
 硬性约束（违反任意一条都会让包坏掉，且多数情况下不报错）：
 1. 不要动 .github/workflows/build.yml
