@@ -211,7 +211,7 @@ func (d *Downloader) fetchAipornxDetail(ctx context.Context, sourceID string) (D
 		})
 	}
 	sortProviderChapters(chapters)
-	return drama, uniqueChapters(chapters), nil
+	return drama, chapters, nil
 }
 
 func (d *Downloader) fetchAipornxPlayURL(ctx context.Context, chapterURL string) (string, error) {
