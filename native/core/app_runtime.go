@@ -618,6 +618,13 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 		result.HasMore = more
 		return result, nil
 	}
+	if query != "" && source == sourceAipornx {
+		items, more, err := d.searchAipornx(ctx, page, query)
+		if err != nil { return result, err }
+		for _, drama := range items { result.Items = append(result.Items, nativeNormalize(drama)) }
+		result.HasMore = more
+		return result, nil
+	}
 	if query != "" && source == sourceHuangguoAI {
 		items, more, err := d.searchHuangguoAI(ctx, page, query)
 		if err != nil {
