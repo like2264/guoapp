@@ -1,0 +1,32 @@
+name: AiPornX provider checks
+
+on:
+  push:
+    branches:
+      - feat/aipornx-provider
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "native/**"
+      - ".github/workflows/aipornx-checks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  go-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Go tests
+        working-directory: native
+        run: go test ./...
+      - name: Go vet
+        working-directory: native
+        run: go vet ./...
