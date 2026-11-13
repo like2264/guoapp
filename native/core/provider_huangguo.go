@@ -97,7 +97,7 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju, sourceHuangtao, sourceYesheai, sourceCrdj, sourceYouzidj:
+	case sourceAipornx, sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju, sourceHuangtao, sourceYesheai, sourceCrdj, sourceYouzidj:
 		return true
 	default:
 		return false
@@ -110,6 +110,8 @@ func canonicalProviderSource(source string) string {
 		return sourceHuangdou
 	}
 	switch trimmed {
+	case "aipornx", "aipornx.cc", "www.aipornx.cc":
+		return sourceAipornx
 	case "huangguo", "huangguoai", "huangguoai.com":
 		return sourceHuangguoAI
 	case "huangguo-video", "huangguo.video":
@@ -243,6 +245,9 @@ func valueEmpty(v any) bool {
 
 func (d *Downloader) GetHuangguoChapters(ctx context.Context, source, sourceID string) (string, []Chapter, error) {
 	switch canonicalProviderSource(source) {
+	case sourceAipornx:
+		drama, chapters, err := d.fetchAipornxDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
 	case sourceHuangguoAI:
 		return d.fetchHuangguoAIChapters(ctx, sourceID)
 	case sourceHuangguoVideo:
