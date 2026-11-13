@@ -25,6 +25,7 @@ class SourceSite {
       id == 'huangtao' ||
       id == 'yesheai' ||
       id == 'crdj' ||
+      id == 'youzidj' ||
       id == 'huangguo-video' ||
       id == 'huangguoai';
   bool get searchSuggestions => id == 'hongguo';
@@ -65,6 +66,7 @@ class SourceSite {
     SourceSite('huangtao', '黄桃', 'AI 短剧 · 分类标签 · 在线搜索'),
     SourceSite('yesheai', '夜社', '短剧 · 动漫 · 在线搜索'),
     SourceSite('crdj', '91短剧', '短剧 · 漫剧 · 真人剧 · 在线搜索'),
+    SourceSite('youzidj', '柚子短剧', 'AI 短剧 · AI 换脸 · AI 成人视频 · 在线搜索'),
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
