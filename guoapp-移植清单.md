@@ -41,6 +41,7 @@ curl -s "https://api.github.com/repos/<作者>/guoapp/git/trees/main?recursive=1
 | **P5** | 构建平台精简（只出 iOS 真果鉴） | 自研 | `.github/workflows/build.yml` | 🟡 建议保留 |
 | **P6** | 版本号 | — | `pubspec.yaml` | 每次必改 |
 | **P7** | 新增站源「夜社」(yesheai) | 自研 | `native/core/provider_yesheai.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`lib/models.dart` | 🟢 已加 |
+| **P8** | 分类 410 容错 + X短剧单片详情 + 详情页「用浏览器打开」 | 自研 | `native/core/app_categories.go`<br>`native/core/provider_huangguo.go`<br>`native/core/provider_xduanju.go`<br>`native/core/provider_weburl.go`（新）<br>`native/core/app_runtime.go`<br>`native/core/app_catalog_cache.go`<br>`lib/models.dart`<br>`lib/ui/detail/detail_page.dart` | 🔴 必须 |
 
 > ⚠️ 每次跑 CI 前**必须提升版本号**，否则 `prepare` 会因 `refs/tags/app-v<version>` 已存在而拦下整个运行。
 
@@ -265,6 +266,66 @@ SwitchTile(
 2. 分页判断用「本页条数 ≥ 30」，站点末页不足 30 条
 3. `player_aaaa.encrypt` 若为 1/2，代码里已实现 base64 / 倒序 base64 兜底
 4. m3u8 与分片不需要 Referer 或 Cookie，URL 自带鉴权
+
+### P8 · 分类下线容错 / 单片详情 / 浏览器跳转 🔴
+
+**8.1 黄果 AI 分类下线（下滑加载整页报错）**
+
+站点 2026-11-13 改版后把「AI 换脸 `ai-huanlian`」「AI 魔改 `ai-mogai`」整体下线，
+`GET /api/videos/category/{slug}` 对新旧分类统一回 **HTTP 410**，body 是
+`{"data":[],"status":0,"msg":"内容已下线"}`。首页导航里也只剩 `ai-duanju` / `ai-manju`。
+
+原来的写法踩了两个坑，都会让整页炸掉：
+
+1. `nativeAICategories` 里有 4 个分类，「全部」是**并发抓 4 个再 `errors.Join`**，
+   任一分类 410 → 整页 `return err`，界面弹出「AI 换脸：黄果来源请求失败…」
+2. `fetchProviderRequest` 把 410 当普通 4xx，继续轮换镜像，**16 个域名全打一遍**（十几秒）
+
+修法：
+
+- `nativeAICategories` 只留 `ai-duanju` / `ai-manju`
+- `fetchProviderRequest` 遇到 410 直接返回 `providerGoneError`（`errors.As` 判定），不再换镜像
+- `fetchHuangguoAICatalogPage` 单分类失败只丢那个分类；410 记进 `huangguoGoneCategories`
+  本次进程内跳过，标签栏也不再显示；**只有一条内容都没拿到且有失败**才向上报错
+- `more` 不再因为 `err != nil` 强制为 true（否则会一直往下滚、一直报错）
+- 传入已下线的旧分类 id 时按「空页」处理，**不要退化成「全部」**（会把别的分类内容冒充成它）
+
+实测：410 从「16 次请求十几秒」降到 **0.24 秒一次请求**；「全部」第 1/2 页各 48 条、`more=true`。
+
+**8.2 X短剧单片详情页**
+
+部分作品（如《妈妈我爱你（泰国）》`/ju/ma-ma-wo-ai-ni`）是站点的**单片页**：
+整页 `<section class="es es-single">`，没有 `<li data-n="N">` 分集列表，
+播放地址直接挂在 `<div class="player" data-src="/bf/505870/master.m3u8" data-n="1">` 上。
+原逻辑只认分集列表 → 0 集 → 报「该剧暂无可播放分集」。
+
+修法：`xduanjuSingleChapter()` 在没有分集列表时读播放器的 `data-src`，合成第 1 集。
+播放时 `/ju/{slug}/1` 会 **301 回详情页本身**，`resolveXduanjuMedia` 顺着跳转仍能读到同一个
+`data-src`，所以取流侧不用改。标题优先取 `<h1 class="es-title">`，并去掉「在线观看 / 全集」后缀。
+
+实测：「最新」前 24 部 + 搜索「妈妈」前 16 部，详情 40/40 可加载。
+
+**8.3 详情页「用浏览器打开」**
+
+Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出网页详情页地址，
+在 `nativeDetail` 出口写入 `nativeDrama.WebURL`（json `webUrl`）；Dart `Drama.webUrl` 透传，
+详情页 `_appBar` 在非空时显示 `open_in_new` 按钮，`launchUrl(externalApplication)` 打开，
+失败退回剪贴板。
+
+| 站源 | 网页详情页 |
+|---|---|
+| huangguoai | `/video/{id}/` |
+| huangguo-video | `/series/{id}` 或 `/video/{id}` |
+| xduanju | `/ju/{slug}` |
+| huangtao | `/video/{id}/` |
+| yesheai | `/detail/{id}.html` |
+| heitao | `/index.php/vod/detail/id/{id}.html` |
+| guipian | `/nv/{id}.html` |
+| hanxiaoquan | `/hanxiaoquan/{id}.html` |
+| yeguo | `/drama/video/{id}/` |
+
+纯 App 接口的站源（红果、黄豆、DSD、琥珀、橘果、禁果、笔盒、黄果旧版）**返回空**，按钮不显示。
+主机优先用 `providerHosts[source]` 里最近成功落地的域名（黄果会轮换镜像），否则用 `providerBaseURL`。
 
 ---
 
