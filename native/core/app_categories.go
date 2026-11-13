@@ -18,11 +18,13 @@ type nativeCategory struct {
 	Name string `json:"name"`
 }
 
+// 黄果 2026-11-13 改版后，AI 换脸(ai-huanlian) 与 AI 魔改(ai-mogai) 两个分类已下线，
+// 站点对新旧分类接口统一回 HTTP 410「内容已下线」，首页导航里也只剩 AI 短剧 / AI 漫剧。
+// 这里不再保留这两个分类，另外 fetchHuangguoAICatalogPage 仍按单分类失败容错，
+// 以后站点再撤别的分类时也不会把整页拉挂。
 var nativeAICategories = []nativeCategory{
 	{ID: "ai-duanju", Name: "AI 短剧"},
 	{ID: "ai-manju", Name: "AI 漫剧"},
-	{ID: "ai-huanlian", Name: "AI 换脸"},
-	{ID: "ai-mogai", Name: "AI 魔改"},
 }
 
 func nativeCatalogKey(source, category string) string {
@@ -99,7 +101,14 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 		}
 		return engine.hongguoCategories(ctx, all, force), nil
 	case sourceHuangguoAI:
-		return append(all, nativeAICategories...), nil
+		// 站点会临时下线某些分类，被判定为 410 的直接不再出现在标签栏里。
+		for _, entry := range nativeAICategories {
+			if huangguoCategoryGone(entry.ID) {
+				continue
+			}
+			all = append(all, entry)
+		}
+		return all, nil
 	case sourceHuangdou:
 		return all, nil
 	}
@@ -260,14 +269,48 @@ func parseHuangguoVideoCategories(body string) []nativeCategory {
 	return categories
 }
 
+const huangguoAICatalogPageSize = 24
+
+// 站点下线某个分类后会稳定返回 410，本次进程内记住它，后续翻页不再白跑一趟。
+var huangguoGoneCategories = struct {
+	sync.Mutex
+	seen map[string]bool
+}{seen: map[string]bool{}}
+
+func huangguoCategoryGone(category string) bool {
+	huangguoGoneCategories.Lock()
+	defer huangguoGoneCategories.Unlock()
+	return huangguoGoneCategories.seen[category]
+}
+
+func rememberHuangguoCategoryGone(category string) {
+	if category == "" {
+		return
+	}
+	huangguoGoneCategories.Lock()
+	defer huangguoGoneCategories.Unlock()
+	huangguoGoneCategories.seen[category] = true
+}
+
+// fetchHuangguoAICatalogPage 把「全部」拼成几个 AI 分类的合集。
+//
+// 单个分类失败（下架、临时 5xx、超时）不应该让整页翻车：只丢掉那个分类，
+// 其余分类照常出内容；只有所有分类都失败且一条都没拿到时才向上报错。
 func (d *Downloader) fetchHuangguoAICatalogPage(ctx context.Context, page int, category string) ([]Drama, bool, error) {
 	categories := nativeAICategories
 	if category != "" {
+		// 只认当前分类表里的 ID；旧版本残留下来的已下线分类按「没有内容」处理，
+		// 不能退化成「全部」，否则会把别的分类内容冒充成它。
+		matched := false
 		for _, entry := range categories {
 			if entry.ID == category {
 				categories = []nativeCategory{entry}
+				matched = true
 				break
 			}
+		}
+		if !matched {
+			return nil, false, nil
 		}
 	}
 	type categoryResult struct {
@@ -281,6 +324,9 @@ func (d *Downloader) fetchHuangguoAICatalogPage(ctx context.Context, page int, c
 		group.Add(1)
 		go func(index int, entry nativeCategory) {
 			defer group.Done()
+			if huangguoCategoryGone(entry.ID) {
+				return
+			}
 			select {
 			case slots <- struct{}{}:
 				defer func() { <-slots }()
@@ -288,15 +334,18 @@ func (d *Downloader) fetchHuangguoAICatalogPage(ctx context.Context, page int, c
 				results[index].err = ctx.Err()
 				return
 			}
-			path := fmt.Sprintf("/api/videos/category/%s?sort=hot&page=%d&size=24", url.PathEscape(entry.ID), page)
+			path := fmt.Sprintf("/api/videos/category/%s?sort=hot&page=%d&size=%d", url.PathEscape(entry.ID), page, huangguoAICatalogPageSize)
 			var body json.RawMessage
 			err := d.huangguoAIAPI(ctx, path, &body)
-			if err == nil {
-				results[index].items = parseHuangguoAIJSONCards(body, d.providerBaseURL(sourceHuangguoAI)+"/", entry.Name)
-			}
 			if err != nil {
+				if isProviderGone(err) {
+					rememberHuangguoCategoryGone(entry.ID)
+					return
+				}
 				results[index].err = fmt.Errorf("%s: %w", entry.Name, err)
+				return
 			}
+			results[index].items = parseHuangguoAIJSONCards(body, d.providerBaseURL(sourceHuangguoAI)+"/", entry.Name)
 		}(index, entry)
 	}
 	group.Wait()
@@ -305,10 +354,13 @@ func (d *Downloader) fetchHuangguoAICatalogPage(ctx context.Context, page int, c
 	more := false
 	for _, result := range results {
 		items = append(items, result.items...)
-		more = more || len(result.items) >= 24 || result.err != nil
+		more = more || len(result.items) >= huangguoAICatalogPageSize
 		if result.err != nil {
 			failures = append(failures, result.err)
 		}
 	}
-	return items, more, errors.Join(failures...)
+	if len(items) == 0 && len(failures) > 0 {
+		return nil, false, errors.Join(failures...)
+	}
+	return items, more, nil
 }

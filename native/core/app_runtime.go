@@ -111,6 +111,7 @@ type nativeDrama struct {
 	Tags           []string `json:"tags,omitempty"`
 	ReleaseStatus  string   `json:"releaseStatus,omitempty"`
 	Badge          string   `json:"badge,omitempty"`
+	WebURL         string   `json:"webUrl,omitempty"`
 }
 
 type nativeInput struct {
@@ -927,6 +928,8 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 	if source == sourceHuangju || source == sourceYeguo || source == sourceJinguoDuanju || source == sourceJinguo {
 		drama.Episodes = max(drama.Episodes, nativeNormalize(raw).Episodes)
 	}
+	// 详情页「用浏览器打开」按钮的目标地址；站源没有网页详情页时为空。
+	drama.WebURL = engine.downloader.providerDramaWebURL(source, sourceID)
 	warning := ""
 	if err := engine.saveDetailMetadata(drama); err != nil {
 		warning = err.Error()

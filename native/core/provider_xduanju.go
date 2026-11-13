@@ -38,6 +38,8 @@ var (
 	reXduanjuEpisode    = regexp.MustCompile(`(?is)<li data-n="(\d+)"[^>]*>\s*<a href="/ju/([a-z0-9-]+)/(\d+)"([^>]*)>`)
 	reXduanjuTitleAttr  = regexp.MustCompile(`(?is)title="([^"]*)"`)
 	reXduanjuPlayer     = regexp.MustCompile(`(?is)<div[^>]*class="[^"]*\bplayer\b[^"]*"[^>]*data-src="([^"]+)"`)
+	reXduanjuPlayerNum  = regexp.MustCompile(`(?is)<div[^>]*class="[^"]*\bplayer\b[^"]*"[^>]*data-n="(\d+)"`)
+	reXduanjuEsTitle    = regexp.MustCompile(`(?is)<h1[^>]*class="[^"]*\bes-title\b[^"]*"[^>]*>(.*?)</h1>`)
 	reXduanjuOGTitle    = regexp.MustCompile(`(?is)<meta[^>]+property="og:title"[^>]+content="([^"]*)"`)
 	reXduanjuOGDesc     = regexp.MustCompile(`(?is)<meta[^>]+property="og:description"[^>]+content="([^"]*)"`)
 	reXduanjuOGImage    = regexp.MustCompile(`(?is)<meta[^>]+property="og:image"[^>]+content="([^"]*)"`)
@@ -72,6 +74,9 @@ func xduanjuTitle(raw string) string {
 	if index := strings.Index(raw, " - "); index > 0 {
 		raw = strings.TrimSpace(raw[:index])
 	}
+	// 站点标题常带「在线观看」「全集」这类后缀，去掉才像剧名。
+	raw = strings.TrimSpace(strings.TrimSuffix(raw, "在线观看"))
+	raw = strings.TrimSpace(strings.TrimSuffix(raw, "全集"))
 	return truncate(raw, 512)
 }
 
@@ -297,6 +302,38 @@ func xduanjuChapters(body, sourceID, site string) []Chapter {
 	return chapters
 }
 
+// xduanjuSingleChapter 处理站点上没有分集列表的「单片」详情页。
+//
+// 这类作品（例如 /ju/ma-ma-wo-ai-ni）整页只有 <section class="es es-single">，
+// 播放地址直接挂在 <div class="player" data-src="..."> 上，没有 <li data-n> 分集条目；
+// 站点又把 /ju/{slug}/1 301 回详情页本身，所以合成第 1 集即可，
+// 播放时 resolveXduanjuMedia 顺着 301 回去仍能读到同一个 data-src。
+func xduanjuSingleChapter(body, sourceID, site string) (Chapter, bool) {
+	match := reXduanjuPlayer.FindStringSubmatch(body)
+	if len(match) < 2 {
+		return Chapter{}, false
+	}
+	if address := xduanjuAbsURL(site, match[1]); !isProviderHTTPMediaURL(address) {
+		return Chapter{}, false
+	}
+	number := 1
+	if numMatch := reXduanjuPlayerNum.FindStringSubmatch(body); len(numMatch) > 1 {
+		if parsed, err := strconv.Atoi(numMatch[1]); err == nil && parsed > 0 && parsed <= xduanjuMaxPage {
+			number = parsed
+		}
+	}
+	episode := strconv.Itoa(number)
+	pageURL := site + "/ju/" + sourceID
+	if number > 1 {
+		pageURL = fmt.Sprintf("%s/ju/%s/%s", site, sourceID, episode)
+	}
+	return Chapter{
+		ID: providerChapterID(sourceXduanju, sourceID, episode), Source: sourceXduanju,
+		Title: fmt.Sprintf("第 %d 集", number), CurrentEpisode: rawEpisode(number),
+		VideoURL: "xduanju-play://" + episode, PageURL: pageURL, Referer: site + "/",
+	}, true
+}
+
 func (d *Downloader) fetchXduanjuDetail(ctx context.Context, sourceID string) (Drama, []Chapter, error) {
 	if !validXduanjuSlug(sourceID) {
 		return Drama{}, nil, errors.New("X短剧剧集标识无效")
@@ -308,10 +345,20 @@ func (d *Downloader) fetchXduanjuDetail(ctx context.Context, sourceID string) (D
 	}
 	chapters := xduanjuChapters(body, sourceID, site)
 	if len(chapters) == 0 {
+		if chapter, ok := xduanjuSingleChapter(body, sourceID, site); ok {
+			chapters = []Chapter{chapter}
+		}
+	}
+	if len(chapters) == 0 {
 		return Drama{}, nil, errors.New("X短剧该剧暂无可播放分集")
 	}
 	meta := xduanjuEpisodeMeta(body)
 	title := truncate(xduanjuClean(nativeText(meta["name"])), 512)
+	if title == "" {
+		if match := reXduanjuEsTitle.FindStringSubmatch(body); len(match) > 1 {
+			title = xduanjuTitle(match[1])
+		}
+	}
 	if title == "" {
 		if match := reXduanjuOGTitle.FindStringSubmatch(body); len(match) > 1 {
 			title = xduanjuTitle(match[1])

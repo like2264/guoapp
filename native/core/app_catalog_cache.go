@@ -185,6 +185,9 @@ func mergeNativeDrama(previous, fresh nativeDrama) nativeDrama {
 	if fresh.Badge == "" {
 		fresh.Badge = previous.Badge
 	}
+	if fresh.WebURL == "" {
+		fresh.WebURL = previous.WebURL
+	}
 	return fresh
 }
 

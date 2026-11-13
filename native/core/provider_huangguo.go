@@ -371,6 +371,27 @@ func (d *Downloader) fetchProviderText(ctx context.Context, rawURL, referer stri
 	return d.fetchProviderRequest(ctx, rawURL, referer, nil)
 }
 
+// providerGoneError 表示站点明确回复「内容已下线」（HTTP 410）。
+//
+// 这种情况换镜像域名没有意义：所有镜像背后是同一个后端，410 是业务层面的
+// 「这个分类/这个条目没了」，所以遇上就直接中止域名轮换，别把 16 个域名全打一遍。
+type providerGoneError struct {
+	source string
+	detail string
+}
+
+func (e *providerGoneError) Error() string {
+	if e.detail == "" {
+		return "站点内容已下线"
+	}
+	return "站点内容已下线：" + e.detail
+}
+
+func isProviderGone(err error) bool {
+	var target *providerGoneError
+	return errors.As(err, &target)
+}
+
 func (d *Downloader) fetchProviderRequest(ctx context.Context, rawURL, referer string, payload []byte) (string, error) {
 	retries := d.cfg.Retries
 	if retries <= 0 {
@@ -453,6 +474,10 @@ func (d *Downloader) fetchProviderRequest(ctx context.Context, rawURL, referer s
 			if len(body) > providerMaxBodyBytes {
 				lastErr = fmt.Errorf("response exceeds %d bytes", providerMaxBodyBytes)
 				continue
+			}
+			// 410 是站点业务层的「内容已下线」，与域名无关，直接返回不再换镜像。
+			if resp.StatusCode == http.StatusGone {
+				return "", &providerGoneError{source: providerSourceForURL(rawURL), detail: truncate(string(body), 120)}
 			}
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 || catalogResponseBlockReason(resp, body) != "" {
 				lastErr = d.catalogResponseError(req, resp, body)
