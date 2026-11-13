@@ -236,7 +236,11 @@ func (d *Downloader) fetchAipornxPlayURL(ctx context.Context, chapterURL string)
 		return "", fmt.Errorf("解析播放接口失败: %w", err)
 	}
 	if payload.Code != 1 || payload.URL == "" {
-		return "", fmt.Errorf("播放接口未返回有效地址: %s", truncate(payload.Msg, 100))
+		message := strings.TrimSpace(payload.Msg)
+		if len(message) > 100 {
+			message = message[:100]
+		}
+		return "", fmt.Errorf("播放接口未返回有效地址: %s", message)
 	}
 	mediaURL := resolveProviderURL(base+"/", payload.URL)
 	parsed, err := url.Parse(mediaURL)
