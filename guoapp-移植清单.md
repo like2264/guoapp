@@ -76,7 +76,7 @@ arguments = ['--dart-define=ALL_SOURCES=' + str(self.all_sources).lower(),
 flags = '-s -w -X duanjuapp/native/core.buildAllSources=' + str(self.all_sources).lower()
 ```
 
-**验证**：装包后「关于」页名字是 **真果鉴**，站源列表出现 **19 个**。
+**验证**：装包后「关于」页名字是 **真果鉴**，站源列表出现 **20 个**。
 
 ---
 
@@ -448,28 +448,30 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 
 ## 5. 20 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
 
-| # | id | 中文名 | 归属 |
-|---|---|---|---|
-| 1 | `hongguo` | 红果 | 作者 |
-| 2 | `dsd` | 帝果 | 作者 |
-| 3 | `sorani` | 青空 | 作者 |
-| 4 | `guipian` | 鬼片 | 作者 |
-| 5 | `hanxiaoquan` | 韩小圈 | 作者 |
-| 6 | `huangdou` | 黄豆 | 作者 |
-| 7 | `huangju` | 剧果 | 作者 |
-| 8 | `yeguo` | 野果 | 作者 |
-| 9 | `jinguoduanju` | 禁果短剧 | 作者 |
-| 10 | `jinguo` | 禁果 | 作者 |
-| 11 | `heitao` | 黑桃 | 作者 |
-| 12 | `beabox` | 笔盒 | 作者 |
-| 13 | `xduanju` | X短剧 | **自加** |
-| 14 | `huangtao` | 黄桃 | **自加** |
-| 15 | `huangguo-video` | 黄果视频 | 作者 |
-| 16 | `huangguoai` | 黄果 AI | 作者（播放逻辑由 P3 重写） |
-| 17 | `cloudfront` | 黄果旧版 | 作者（旧 API 剧库） |
-| 18 | `yesheai` | 夜社 | **自加** |
-| 19 | `crdj` | 91短剧 | **自加** |
-| 20 | `youzidj` | 柚子短剧 | **自加** |
+| # | id | 中文名 | 内容 | 搜索 | 归属 |
+|---|---|---|---|---|---|
+| 1 | `hongguo` | 红果 | 短剧、漫剧、AI 剧；推荐、榜单、题材 | 在线搜索，带输入联想 | 作者 |
+| 2 | `dsd` | 帝果 | 分类视频 | 在线搜索 | 作者 |
+| 3 | `sorani` | 青空 | 番剧、剧场动画、特摄 | 在线搜索 | 作者 |
+| 4 | `guipian` | 鬼片 | 鬼片、电视剧、动漫，多线路 | 匹配站点 RSS 最新条目 | 作者 |
+| 5 | `hanxiaoquan` | 韩小圈 | 韩剧、韩国电影、综艺、动漫，多线路 | 在线搜索 | 作者 |
+| 6 | `huangdou` | 黄豆 | 精选短剧、榜单 | 只搜本机缓存 | 作者 |
+| 7 | `huangju` | 剧果 | 分类短剧 | 在线搜索 | 作者 |
+| 8 | `yeguo` | 野果 | 分类短剧 | 在线搜索 | 作者 |
+| 9 | `jinguoduanju` | 禁果短剧 | 推荐、热度、分类短剧 | 在线搜索 | 作者 |
+| 10 | `jinguo` | 禁果 | 精选、最新、分类短剧 | 在线搜索 | 作者 |
+| 11 | `heitao` | 黑桃 | 分类、详情、分集 | 在线搜索 | 作者 |
+| 12 | `beabox` | 笔盒 | 最新视频、标签分类 | 在线搜索 | 作者 |
+| 13 | `xduanju` | X短剧 | 最新、完结、题材分类 | 在线搜索 | **自加** |
+| 14 | `huangtao` | 黄桃 | AI 短剧频道、标签分类 | 在线搜索 | **自加** |
+| 15 | `yesheai` | 夜社 | 短剧、动漫，分类标签 | 在线搜索 | **自加** |
+| 16 | `crdj` | 91短剧 | 短剧、漫剧、真人剧 | 在线搜索 | **自加** |
+| 17 | `youzidj` | 柚子短剧 | AI 短剧、AI 换脸 | 在线搜索 | **自加** |
+| 18 | `huangguo-video` | 黄果视频 | 列表、分类及分集 | 在线搜索，单页 10 条 | 作者 |
+| 19 | `huangguoai` | 黄果 AI | AI 短剧 | 在线搜索 | 作者（播放逻辑由 P3 重写） |
+| 20 | `cloudfront` | 黄果旧版 | 旧 API 剧库 | 在线搜索 | 作者 |
+
+> 上表顺序 = `lib/models.dart` 里 `SourceSite` 的声明顺序（也是 App 内站源列表的默认顺序）；「内容 / 搜索」两列与 `README.md` 的「## 站源」表保持一致，改一处记得同步另一处。
 
 > 20 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
 
