@@ -40,6 +40,7 @@ const (
 	sourceHuangtao      = "huangtao"
 	sourceYesheai       = "yesheai"
 	sourceCrdj          = "crdj"
+	sourceYouzidj       = "youzidj"
 
 	providerMaxBodyBytes = 20 * 1024 * 1024
 	providerTimeout      = 12 * time.Second
@@ -96,7 +97,7 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju, sourceHuangtao, sourceYesheai, sourceCrdj:
+	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceHeitao, sourceBeabox, sourceXduanju, sourceHuangtao, sourceYesheai, sourceCrdj, sourceYouzidj:
 		return true
 	default:
 		return false
@@ -148,6 +149,8 @@ func canonicalProviderSource(source string) string {
 	case "crdj", "91crdjai.com", "www.91crdjai.com", "91crdj.co", "www.91crdj.co",
 		"91crdj.net", "www.91crdj.net", "aicrdj7.com", "www.aicrdj7.com", "crdj.net", "www.crdj.net":
 		return sourceCrdj
+	case "youzidj", "youzidj.com", "www.youzidj.com", "yzdju.online", "www.yzdju.online":
+		return sourceYouzidj
 	default:
 		return strings.TrimSpace(source)
 	}
