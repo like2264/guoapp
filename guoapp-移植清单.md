@@ -1,7 +1,7 @@
 # guoapp 定制版 · 功能移植清单
 
 > 用途：作者发布新版本时，从这份清单里勾选要保留/移植的功能，逐项套用即可，不必每次重做。
-> 最后更新：2026-11-13 · 对应版本 **1.0.20+120** · 仓库 `like2264/guoapp`
+> 最后更新：2026-11-13 · 对应版本 **1.0.21+121** · 仓库 `like2264/guoapp`
 
 ---
 
@@ -12,8 +12,8 @@
 | 内核版本 | 作者 **1.0.11+111**（旧架构） |
 | 架构特征 | `native/core` 有 **161 个 `.go`**；类型 `nativeDrama`；站源写在 `provider_*.go` |
 | 反例（新架构） | core 只有 **67 个 `.go`**；类型 `LibraryDrama`；多出 `provider_host.go` / `provider_registry.go` |
-| 站源数量 | **19 个**（见第 5 节） |
-| 版本号现状 | `pubspec.yaml` → `1.0.20+120` |
+| 站源数量 | **20 个**（见第 5 节） |
+| 版本号现状 | `pubspec.yaml` → `1.0.21+121` |
 | bundle id | `com.guoapp.phoenix`（可与作者版共存需改成 `com.guoapp.all`） |
 | 出包平台 | 只保留 iOS 真果鉴；android / windows / macos 全部关闭 |
 
@@ -43,6 +43,7 @@ curl -s "https://api.github.com/repos/<作者>/guoapp/git/trees/main?recursive=1
 | **P7** | 新增站源「夜社」(yesheai) | 自研 | `native/core/provider_yesheai.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`lib/models.dart` | 🟢 已加 |
 | **P8** | 分类 410 容错 + X短剧单片详情 + 详情页「用浏览器打开」 | 自研 | `native/core/app_categories.go`<br>`native/core/provider_huangguo.go`<br>`native/core/provider_xduanju.go`<br>`native/core/provider_weburl.go`（新）<br>`native/core/app_runtime.go`<br>`native/core/app_catalog_cache.go`<br>`lib/models.dart`<br>`lib/ui/detail/detail_page.dart` | 🔴 必须 |
 | **P9** | 新增站源「91短剧」(crdj) | 自研 | `native/core/provider_crdj.go`（新）<br>`native/core/provider_crdj_test.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`native/core/provider_weburl.go`<br>`lib/models.dart` | 🟢 已加 |
+| **P10** | 新增站源「柚子短剧」(youzidj) | 自研 | `native/core/provider_youzidj.go`（新）<br>`native/core/provider_youzidj_test.go`（新）<br>`native/core/provider_huangguo.go`<br>`native/core/provider_media.go`<br>`native/core/app_runtime.go`<br>`native/core/app_categories.go`<br>`native/core/app_cover_metadata.go`<br>`native/core/provider_weburl.go`<br>`lib/models.dart` | 🟢 已加 |
 
 > ⚠️ 每次跑 CI 前**必须提升版本号**，否则 `prepare` 会因 `refs/tags/app-v<version>` 已存在而拦下整个运行。
 
@@ -360,6 +361,36 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 回归测试 `provider_crdj_test.go` 用脱敏骨架覆盖卡片 / JSON / 分集 / 详情 / POST 取流 / HLS 播放列表，
 `go test -tags=zhenguojian ./core/` 全绿。
 
+### P10 · 新增站源「柚子短剧」(youzidj) 🟢
+
+站点 `youzidj.com`，Cloudflare Workers + 服务端渲染，**没有 maccms 接口，也不需要 edge 桥**。
+
+| 能力 | 路径 |
+|---|---|
+| 列表 | `GET /dramas/`、`/ai-face-swap/`、`/ai-adult/`，翻页 `/{段落}/page/{n}/`，每页 24 条 |
+| 搜索 | `GET /api/catalogue/search?q={kw}&kind=works&page={n}` → `<div data-pages="N">` + 卡片片段 |
+| 详情 | `GET /dramas/{slug}/` 系列页，`ld+json` 是 `TVSeries`，页面直接列出全部季的分集链接 |
+| 单片 | `GET /ai-face-swap/{code}/`、`/ai-adult/{code}/`，`ld+json` 是 `VideoObject` |
+| 分集页 | `GET /dramas/{slug}/season-{n}-episode-{m}/`，`<section id="player" data-video="...">` |
+| 播放 | `POST /api/account/bootstrap` → `eden_account` Cookie；`POST /api/playback/{videoID}?mode=mse` → `{url, expires_at}` + `eden_play_{videoID}` Cookie |
+
+四个关键设计：
+
+1. **sourceID 是站内相对路径**：`dramas/{slug}`（系列，去掉季号）或 `ai-face-swap/{code}` / `ai-adult/{code}`。
+   列表卡片给的是 `season-1` 页，解析时统一收敛到系列页，这样一部剧只出现一次。
+2. **分集一次抓全**：系列页把 3 季的 41 集链接平铺在同一页，按 `(季, 集)` 排序后连续编号；
+   单季剧标题是「第N集」，多季剧是「第N季 第M集」。
+3. **m3u8 主列表公开、子列表与分片要 Cookie**：主播放列表不带凭证也能 200，但子播放列表
+   会回 403「播放凭证已过期」。所以适配层把 `eden_account` 与 `eden_play_{videoID}` 拼成一个
+   Cookie 串交给 `providerMediaCredentials`，由 core 的本地流服务统一带凭证取流，
+   播放 / 下载 / 预加载三条路径都能用。访客凭证缓存 12 小时，播放凭证按 `expires_at`（约 15 分钟）判过期。
+4. **三个栏目独立**：站点把 AI短剧 / AI换脸 / AI成人视频做成三个片库，之间没有聚合列表，
+   所以分类固定 3 个（`dramas` / `face-swap` / `adult`）。
+
+回归测试 `provider_youzidj_test.go` 用脱敏骨架覆盖注册点 / 卡片 / 搜索片段 / 系列详情 /
+单片详情 / 凭证链路 / 访客会话失效重取，`go test -tags=zhenguojian ./core/` 全绿；
+真实站点冒烟（列表 23 条、搜索 24 条、19 集详情、m3u8 8 行、单片可播）已验证。
+
 ---
 
 ## 3. 新增一个站源的标准步骤（以后要加站用）
@@ -415,7 +446,7 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 
 ---
 
-## 5. 19 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
+## 5. 20 个站源（`lib/models.dart` → `SourceSite`，权威顺序）
 
 | # | id | 中文名 | 归属 |
 |---|---|---|---|
@@ -438,8 +469,9 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 | 17 | `cloudfront` | 黄果旧版 | 作者（旧 API 剧库） |
 | 18 | `yesheai` | 夜社 | **自加** |
 | 19 | `crdj` | 91短剧 | **自加** |
+| 20 | `youzidj` | 柚子短剧 | **自加** |
 
-> 19 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
+> 20 个站源的实现文件在 `native/core/` 里全部齐备（`provider_yeguo*`、`provider_dsd_*`、`provider_jinguoduanju*`、`provider_heitao.go`、`provider_beabox.go` …），**不存在「缺站源待迁移」这种情况**。以后只有「某站改版失效，去修」。
 
 ---
 
@@ -447,14 +479,15 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 
 | # | 检查项 | 期望 |
 |---|---|---|
-| 1 | 关于页版本号 | `1.0.20（120）` |
-| 2 | 站源总数 | 19 个 |
+| 1 | 关于页版本号 | `1.0.21（121）` |
+| 2 | 站源总数 | 20 个 |
 | 3 | App 名称 | 真果鉴（不是红果鉴） |
 | 4 | 黄果 AI → 任意剧 → 第 1/2/3 集 | 能起播 |
 | 5 | 黄桃 → 搜「琼明」 | 只剩「琼明神女录」；搜不存在的词显示「没有找到」 |
 | 6 | 设置 → 外观 | 有「纯黑深色模式」开关且生效 |
 | 7 | 91短剧 → 搜索 / 分类 / 播放 | 能搜到、能翻页、第 1 集能起播 |
-| 8 | 任意剧详情页右上角 | 有「在浏览器中打开」按钮 |
+| 8 | 柚子短剧 → 搜索 / 三个栏目 / 播放 | 能搜到、能翻页、第 1 集能起播 |
+| 9 | 任意剧详情页右上角 | 有「在浏览器中打开」按钮 |
 
 ---
 
@@ -483,6 +516,7 @@ Go 侧 `providerDramaWebURL(source, sourceID)`（`provider_weburl.go`）给出�
 | `upload-121/` | 夜社站源（P7）+ `lib/models.dart` + `pubspec.yaml` | 1.0.18+118 |
 | `upload-122/` | 分类 410 容错 + 单片详情 + 浏览器按钮（P8） | 1.0.19+119 |
 | `upload-123/` | 91短剧站源（P9）+ 回归测试 | 1.0.20+120 |
+| `upload-124/` | 柚子短剧站源（P10）+ 回归测试 | 1.0.21+121 |
 | `upload-117` / `upload-118` | 两版 `build.yml` | P5（118 是 `macos-15-intel` 终版） |
 | `scratchpad/base115full/` | 1.0.17 完整源码树 | 本地 `go vet` / `go test` 用 |
 
@@ -503,7 +537,7 @@ go build -o /dev/null ./core
 
 ## 9. 交接给其他 AI / 其他工具时的提示词模板
 
-> 背景：`main` 分支就是当前可用版本（1.0.20+120）。别的 AI 拉 `main` 拿到的就是这一版源码。
+> 背景：`main` 分支就是当前可用版本（1.0.21+121）。别的 AI 拉 `main` 拿到的就是这一版源码。
 > **但「在 1.0.17 上改」不会自动成立**——它需要下面这些约束，否则最常见的两种事故是
 > 「顺手把作者新版全量覆盖进来」和「顺手改了 build.yml」，两者都会把三个补丁一起弄丢。
 
@@ -518,10 +552,10 @@ https://github.com/like2264/guoapp/upload/main   →   拖入 guoapp-移植清�
 ### 交接提示词（整段复制给对方）
 
 ```text
-仓库：https://github.com/like2264/guoapp ，main 分支，当前版本 pubspec 1.0.20+120，
+仓库：https://github.com/like2264/guoapp ，main 分支，当前版本 pubspec 1.0.21+121，
 已验证可用的基线 commit 是 a277b516。
 
-改之前先读仓库根目录的 guoapp-移植清单.md，里面有 9 个历史补丁（P1–P9）和 8 条 CI 坑。
+改之前先读仓库根目录的 guoapp-移植清单.md，里面有 10 个历史补丁（P1–P10）和 8 条 CI 坑。
 
 硬性约束（违反任意一条都会让包坏掉，且多数情况下不报错）：
 1. 不要动 .github/workflows/build.yml
