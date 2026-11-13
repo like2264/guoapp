@@ -168,18 +168,8 @@ func (d *Downloader) fetchAipornxDetail(ctx context.Context, sourceID string) (D
 		}
 	}
 	cover := ""
-	for _, imageTag := range regexp.MustCompile(`(?is)<img\b[^>]*>`).FindAllString(body, -1) {
-		if !strings.Contains(imageTag, "detail-cover") {
-			continue
-		}
-		cover = aipornxAttr(imageTag, "data-src")
-		if cover == "" {
-			cover = aipornxAttr(imageTag, "src")
-		}
-		if cover != "" {
-			cover = resolveProviderURL(address, cover)
-			break
-		}
+	if match := regexp.MustCompile(`(?is)<[^>]*class=["'][^"']*detail-cover[^"']*["'][^>]*>.*?<img[^>]+(?:src|data-src)=["']([^"']+)["']`).FindStringSubmatch(body); len(match) > 1 {
+		cover = resolveProviderURL(address, match[1])
 	}
 	desc := ""
 	if match := regexp.MustCompile(`(?is)<[^>]*class=["'][^"']*detail-summary[^"']*["'][^>]*>(.*?)</[^>]+>`).FindStringSubmatch(body); len(match) > 1 {
