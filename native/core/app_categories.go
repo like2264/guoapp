@@ -50,6 +50,8 @@ func validNativeCategory(source, category string) bool {
 			}
 		}
 		return hongguoTagPattern.MatchString(category)
+	case sourceAipornx:
+		return category == "anthurium" || category == "camelia" || category == "all"
 	case sourceHuangguoAI:
 		for _, entry := range nativeAICategories {
 			if category == entry.ID {
@@ -104,6 +106,8 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 			all = append(all, nativeCategory{ID: genre.key, Name: genre.name})
 		}
 		return engine.hongguoCategories(ctx, all, force), nil
+	case sourceAipornx:
+		return append(all, nativeCategory{ID: "anthurium", Name: "AI成人短剧"}, nativeCategory{ID: "camelia", Name: "AI成人漫剧"}), nil
 	case sourceHuangguoAI:
 		// 站点会临时下线某些分类，被判定为 410 的直接不再出现在标签栏里。
 		for _, entry := range nativeAICategories {
