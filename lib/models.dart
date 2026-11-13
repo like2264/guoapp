@@ -27,7 +27,8 @@ class SourceSite {
       id == 'crdj' ||
       id == 'youzidj' ||
       id == 'huangguo-video' ||
-      id == 'huangguoai';
+      id == 'huangguoai' ||
+      id == 'aipornx';
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
     'huangguo-video' || 'huangguoai' || 'cloudfront' => 'huangguo',
@@ -69,6 +70,7 @@ class SourceSite {
     SourceSite('youzidj', '柚子短剧', 'AI 短剧 · AI 换脸 · AI 成人视频 · 在线搜索'),
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
+    SourceSite('aipornx', 'AiPorn', 'AI 成人短剧 · AI 成人漫剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
   ];
   static const knownValues = [...primaryValues, ...restrictedValues];
