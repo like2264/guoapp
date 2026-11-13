@@ -620,8 +620,12 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 	}
 	if query != "" && source == sourceAipornx {
 		items, more, err := d.searchAipornx(ctx, page, query)
-		if err != nil { return result, err }
-		for _, drama := range items { result.Items = append(result.Items, nativeNormalize(drama)) }
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
 		result.HasMore = more
 		return result, nil
 	}
