@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../drama_details.dart';
 import '../../local_store.dart';
@@ -401,6 +402,12 @@ class _DetailPageState extends State<DetailPage> {
             : Colors.transparent,
       ),
       actions: [
+        if (details.drama.webUrl.isNotEmpty)
+          IconButton(
+            tooltip: '在浏览器中打开',
+            onPressed: () => _openWebsite(details.drama.webUrl),
+            icon: const Icon(Icons.open_in_new_rounded),
+          ),
         IconButton(
           tooltip: '更新剧集信息',
           onPressed: details.loading ? null : _refresh,
@@ -409,6 +416,23 @@ class _DetailPageState extends State<DetailPage> {
         const SizedBox(width: 4),
       ],
     );
+  }
+
+  /// 跳到站源网页版的详情页。
+  ///
+  /// 站源返回的 webUrl 为空（纯 App 接口的站源）时按钮不显示；
+  /// 打开失败就退回剪贴板，至少能把地址带走。
+  Future<void> _openWebsite(String url) async {
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    ).catchError((_) => false);
+    if (opened || !mounted) return;
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('无法打开浏览器，链接已复制')));
   }
 
   Widget _withBackdrop(Drama drama, double height, Widget child) {
