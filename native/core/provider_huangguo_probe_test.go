@@ -165,7 +165,10 @@ func TestHuangguoVideoSearchPaging(t *testing.T) {
 	base := d.providerBaseURL(sourceHuangguoVideo)
 	escaped := url.QueryEscape("总裁")
 	firstOfPageOne := ""
-	suffixes := []string{"", "&page=2", "&p=2", "&pageNum=2", "&page_no=2", "&size=50", "&limit=50", "&size=50&page=2"}
+	// 注意：站点的搜索分页参数是 content_page，不在下面这串老候选里。
+	// 之前只试 page/p/pageNum/page_no/size/limit 就断定「搜索不可翻页」，是错的；
+	// content_page=2 会让首条变化，实测每页 24 条。
+	suffixes := []string{"", "&page=2", "&p=2", "&pageNum=2", "&page_no=2", "&size=50", "&limit=50", "&size=50&page=2", "&content_page=2", "&content_page=3"}
 	for index, suffix := range suffixes {
 		address := base + "/search?q=" + escaped + suffix
 		body, fetchErr := d.fetchProviderText(ctx, address, base+"/")

@@ -307,21 +307,43 @@ func (d *Downloader) fetchHuangguoVideoChapters(ctx context.Context, sourceID st
 // 黄果视频的搜索页是服务端渲染的 /search?q=，卡片结构与列表页不同（没有 video-card class），
 // 由 parseHuangguoVideoCards 里的兜底分支解析。
 //
-// 这个搜索页只给第一页的 10 条：实测 page/p/pageNum/page_no/size/limit 全部被站点忽略
-// （8 种组合返回的首条与第一页完全相同），所以这里固定返回 hasMore=false，
-// 避免客户端一直往下翻、反复拿到同一批结果。
-func (d *Downloader) searchHuangguoVideo(ctx context.Context, query string) ([]Drama, bool, error) {
+// 分页参数是 content_page（页码从 1 开始，每页 24 条）。早期试过 page / p / pageNum /
+// page_no / size / limit，站点全部忽略，于是误判成「搜索不可翻页」只取第一页、
+// hasMore 固定 false，这就是搜「妈妈」只出 24 部（站点自报共 54 部）的原因。
+// 2026-11-15 实测：第 1/2/3 页分别 24/24/6 条，content_page=4 会被钳回第 3 页并返回空列表。
+func (d *Downloader) searchHuangguoVideo(ctx context.Context, page int, query string) ([]Drama, bool, error) {
 	query = strings.TrimSpace(query)
 	if query == "" || len([]rune(query)) > 64 {
 		return nil, false, errors.New("黄果搜索关键词无效")
 	}
+	if page < 1 {
+		page = 1
+	}
 	base := d.providerBaseURL(sourceHuangguoVideo)
 	address := base + "/search?q=" + url.QueryEscape(query)
+	if page > 1 {
+		address += "&content_page=" + strconv.Itoa(page)
+	}
 	body, err := d.fetchProviderText(ctx, address, base+"/")
 	if err != nil {
 		return nil, false, err
 	}
-	return parseHuangguoVideoCards(body, address), false, nil
+	return parseHuangguoVideoCards(body, address), huangguoVideoHasNextPage(body, page), nil
+}
+
+// huangguoVideoHasNextPage 判断搜索结果后面还有没有页。
+//
+// 站点在列表底部输出 <a ... rel="next"> 和形如 content_page=N+1 的链接，命中任一即认为有下一页。
+// 越界请求（共 3 页时取 content_page=4）会被钳回最后一页并返回空卡片，既没有 rel="next"
+// 也没有 content_page=N+1，正好判成到底，不会让客户端无限翻。
+func huangguoVideoHasNextPage(rawHTML string, page int) bool {
+	if page < 1 {
+		page = 1
+	}
+	if strings.Contains(rawHTML, "content_page="+strconv.Itoa(page+1)) {
+		return true
+	}
+	return strings.Contains(rawHTML, `rel="next"`)
 }
 
 func (d *Downloader) fetchHuangguoVideoDetail(ctx context.Context, sourceID string) (Drama, []Chapter, error) {

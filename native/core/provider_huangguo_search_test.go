@@ -35,3 +35,34 @@ func TestHuangguoVideoCardsParseBareLinks(t *testing.T) {
 		t.Fatalf("titles = %q, %q", cards[0].Title, cards[1].Title)
 	}
 }
+
+// 搜索页的分页参数是 content_page，不是 page。搜「妈妈」时站点自报 54 部，
+// 三页分别是 24/24/6 条；越界请求 content_page=4 会被钳回第 3 页并返回空列表。
+// 下面四段就是这三页分页器的真实结构（含越界页被钳回后的形态）。
+func TestHuangguoVideoSearchPagination(t *testing.T) {
+	page1 := `<nav><span aria-current="page">1</span>` +
+		`<a href="/search?q=%E5%A6%88%E5%A6%88&amp;content_page=2" class="pager-btn pager-page">2</a>` +
+		`<a href="/search?q=%E5%A6%88%E5%A6%88&amp;content_page=2" class="pager-btn pager-dir" rel="next">下一页</a></nav>`
+	page2 := `<nav><a href="/search?q=x&amp;content_page=2" aria-current="page">2</a>` +
+		`<a href="/search?q=x&amp;content_page=3" class="pager-btn pager-page">3</a>` +
+		`<a href="/search?q=x&amp;content_page=3" class="pager-btn pager-dir" rel="next">下一页</a></nav>`
+	page3 := `<nav><a href="/search?q=x&amp;content_page=2" class="pager-btn pager-page">2</a>` +
+		`<span aria-current="page">3</span></nav>`
+
+	if !huangguoVideoHasNextPage(page1, 1) {
+		t.Fatal("第 1 页应判定为还有下一页")
+	}
+	if !huangguoVideoHasNextPage(page2, 2) {
+		t.Fatal("第 2 页应判定为还有下一页")
+	}
+	if huangguoVideoHasNextPage(page3, 3) {
+		t.Fatal("第 3 页应判定为到底")
+	}
+	if huangguoVideoHasNextPage(page3, 4) {
+		t.Fatal("越界页（被钳回第 3 页）应判定为到底，不能无限翻")
+	}
+	// 只有 rel="next"、没有可解析的 content_page 数字时也要认。
+	if !huangguoVideoHasNextPage(`<a href="/search?q=x" rel="next">下一页</a>`, 1) {
+		t.Fatal("仅有 rel=next 时应判定为还有下一页")
+	}
+}

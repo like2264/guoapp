@@ -633,7 +633,7 @@ func (engine *nativeEngine) nativeCatalogRaw(ctx context.Context, input nativeIn
 		return result, nil
 	}
 	if query != "" && source == sourceHuangguoVideo {
-		items, more, err := d.searchHuangguoVideo(ctx, query)
+		items, more, err := d.searchHuangguoVideo(ctx, page, query)
 		if err != nil {
 			return result, err
 		}
