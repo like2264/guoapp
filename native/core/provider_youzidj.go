@@ -48,6 +48,13 @@ const (
 
 	youzidjAccountCookie = "eden_account"
 	youzidjAccountTTL    = 12 * time.Hour
+
+	// 站点入口的 18+ 年龄确认。列表/详情这些 HTML 页照常返回（门是前端遮罩），
+	// 但 /api/catalogue/search 与 /api/playback/* 对未确认的请求直接回 403
+	// {"error":"请先完成网站入口的年龄确认"}。
+	youzidjAgeCookieName = "eden_age_v2"
+	youzidjAgeTTL        = 12 * time.Hour
+	youzidjAgeRetryTTL   = time.Minute
 )
 
 var (
@@ -162,11 +169,122 @@ func youzidjAbsURL(site, raw string) string {
 
 func (d *Downloader) youzidjGet(ctx context.Context, address string) (string, error) {
 	site := d.providerBaseURL(sourceYouzidj)
+	target := address
 	if !strings.HasPrefix(address, "http") {
-		address = site + address
+		target = site + address
 	}
+	body, err := d.youzidjGetOnce(ctx, site, target)
+	if err == nil || !youzidjAgeRejected(err) {
+		return body, err
+	}
+	// 年龄确认的凭证过期，或站点换了签名，重新确认一次再试。
+	// 403 已经被限流器记成 60 秒退避，这里必须先清掉，否则重试会被本地直接挡回去。
+	d.youzidjForgetAge()
+	d.clearProviderBackoff(target)
+	if d.youzidjAge(ctx, site, site+"/") == "" {
+		return "", err
+	}
+	return d.youzidjGetOnce(ctx, site, target)
+}
+
+func (d *Downloader) youzidjGetOnce(ctx context.Context, site, target string) (string, error) {
 	pageContext := context.WithValue(ctx, providerTextUserAgentKey{}, youzidjUserAgent)
-	return d.fetchProviderText(pageContext, address, site+"/")
+	if cookie := youzidjAgeCookieText(d.youzidjAge(ctx, site, site+"/")); cookie != "" {
+		pageContext = context.WithValue(pageContext, providerTextCookieKey{}, cookie)
+	}
+	return d.fetchProviderText(pageContext, target, site+"/")
+}
+
+// youzidjAgeCookieText 把缓存的确认值拼成 Cookie 头。
+func youzidjAgeCookieText(value string) string {
+	if value == "" {
+		return ""
+	}
+	return youzidjAgeCookieName + "=" + value
+}
+
+func youzidjJoinCookies(parts ...string) string {
+	kept := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			kept = append(kept, part)
+		}
+	}
+	return strings.Join(kept, "; ")
+}
+
+// youzidjAgeRejected 判断这次失败是不是 403。缺年龄确认凭证时站点回的就是 403。
+func youzidjAgeRejected(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "HTTP 403")
+}
+
+// youzidjAgeOnce 提交站点入口的年龄确认，取回 eden_age_v2。
+//
+// 表单是 POST /age-check（字段 return_to、decision=accepted）。站点会校验来源：
+// 必须带 Origin: https://youzidj.com，只带 Referer 会回 403「请求来源无效，请刷新页面后重试」。
+// 成功时回 303 并在跳转响应上下发 Cookie，所以这里不跟跳转，直接从响应里取。
+func (d *Downloader) youzidjAgeOnce(ctx context.Context, site, referer string) (string, error) {
+	form := url.Values{}
+	form.Set("return_to", "/")
+	form.Set("decision", "accepted")
+	address := site + "/age-check"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, address, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Accept", "text/html,application/xhtml+xml")
+	request.Header.Set("User-Agent", youzidjUserAgent)
+	request.Header.Set("Referer", referer)
+	if parsed, parseErr := url.Parse(address); parseErr == nil {
+		request.Header.Set("Origin", providerMediaOrigin(parsed))
+	}
+	client := *d.client
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<16))
+	if response.StatusCode < 200 || response.StatusCode >= 400 {
+		return "", fmt.Errorf("站点返回 HTTP %d", response.StatusCode)
+	}
+	value := youzidjCookieValue(response.Cookies(), youzidjAgeCookieName)
+	if value == "" {
+		return "", errors.New("站点未下发年龄确认凭证")
+	}
+	return value, nil
+}
+
+// youzidjAge 返回当前可用的年龄确认凭证。取不到就返回空串，请求照常发出，
+// 由站点自己决定怎么回——不因为这一层把整条链路卡死。
+func (d *Downloader) youzidjAge(ctx context.Context, site, referer string) string {
+	d.youzidjAgeMu.Lock()
+	cached, cachedAt := d.youzidjAgeTicket, d.youzidjAgeAt
+	d.youzidjAgeMu.Unlock()
+	ttl := youzidjAgeTTL
+	if cached == "" {
+		ttl = youzidjAgeRetryTTL
+	}
+	if !cachedAt.IsZero() && time.Since(cachedAt) < ttl {
+		return cached
+	}
+	value, err := d.youzidjAgeOnce(ctx, site, referer)
+	d.youzidjAgeMu.Lock()
+	if err != nil {
+		d.youzidjAgeTicket, d.youzidjAgeAt = "", time.Now()
+	} else {
+		d.youzidjAgeTicket, d.youzidjAgeAt = value, time.Now()
+	}
+	d.youzidjAgeMu.Unlock()
+	return value
+}
+
+func (d *Downloader) youzidjForgetAge() {
+	d.youzidjAgeMu.Lock()
+	d.youzidjAgeTicket, d.youzidjAgeAt = "", time.Time{}
+	d.youzidjAgeMu.Unlock()
 }
 
 func youzidjListPath(category string, page int) string {
@@ -599,6 +717,8 @@ func (d *Downloader) youzidjPost(ctx context.Context, address, referer, cookie s
 		request.Header.Set("Origin", providerMediaOrigin(parsed))
 	}
 	request.Header.Set("Referer", referer)
+	// 站点要求先过入口年龄确认，POST 的搜索/播放接口同样带上门禁 Cookie。
+	cookie = youzidjJoinCookies(youzidjAgeCookieText(d.youzidjAge(ctx, d.providerBaseURL(sourceYouzidj), referer)), cookie)
 	if cookie != "" {
 		request.Header.Set("Cookie", cookie)
 	}
@@ -660,9 +780,14 @@ func (d *Downloader) youzidjPlaybackOnce(ctx context.Context, site, videoID, ref
 	var payload youzidjPlaybackPayload
 	_ = json.Unmarshal(body, &payload)
 	if status != http.StatusOK {
-		message := firstNonEmpty(payload.Error, fmt.Sprintf("站点返回 HTTP %d", status))
-		if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		message := strings.TrimSpace(payload.Error)
+		switch {
+		case message != "":
+			// 站点自己的说明更准确，例如「请先完成网站入口的年龄确认」。
+		case status == http.StatusUnauthorized || status == http.StatusForbidden:
 			message = "播放凭证已失效，请重新播放"
+		default:
+			message = fmt.Sprintf("站点返回 HTTP %d", status)
 		}
 		return "", "", time.Time{}, status, errors.New("柚子短剧播放凭证获取失败：" + message)
 	}
@@ -680,9 +805,10 @@ func (d *Downloader) youzidjPlaybackOnce(ctx context.Context, site, videoID, ref
 	if payload.ExpiresAt <= 0 || expires.Before(time.Now()) {
 		expires = time.Now().Add(8 * time.Minute)
 	}
-	cookie := youzidjAccountCookie + "=" + account
+	// 主列表、子列表与分片都要带门禁 Cookie，缺了站点会回 403。
+	cookie := youzidjJoinCookies(youzidjAgeCookieText(d.youzidjAge(ctx, site, referer)), youzidjAccountCookie+"="+account)
 	if playCookie := youzidjCookieValue(response.Cookies(), "eden_play_"+videoID); playCookie != "" {
-		cookie += "; eden_play_" + videoID + "=" + playCookie
+		cookie = youzidjJoinCookies(cookie, "eden_play_"+videoID+"="+playCookie)
 	}
 	return mediaURL, cookie, expires, status, nil
 }
@@ -723,8 +849,9 @@ func (d *Downloader) resolveYouzidjMedia(ctx context.Context, task Task) (provid
 	}
 	mediaURL, cookie, expires, status, err := d.youzidjPlaybackOnce(ctx, site, videoID, pageURL, account)
 	if err != nil && (status == http.StatusUnauthorized || status == http.StatusForbidden) {
-		// 访客会话过期时重新领取一次，仍然失败就把原错误交给上层。
+		// 访客会话或年龄确认过期时连同门禁凭证一起重新领取一次，仍然失败就把原错误交给上层。
 		d.youzidjForgetAccount()
+		d.youzidjForgetAge()
 		if fresh, bootErr := d.youzidjAccount(ctx, site, pageURL); bootErr == nil {
 			mediaURL, cookie, expires, _, err = d.youzidjPlaybackOnce(ctx, site, videoID, pageURL, fresh)
 		}

@@ -94,6 +94,9 @@ type Downloader struct {
 	youzidjGuestMu        sync.Mutex
 	youzidjGuest          string
 	youzidjGuestAt        time.Time
+	youzidjAgeMu          sync.Mutex
+	youzidjAgeTicket      string
+	youzidjAgeAt          time.Time
 }
 
 func defaultConfig() Config { return Config{MaxPagesPerSort: 50, PageSize: 30, Retries: 2} }

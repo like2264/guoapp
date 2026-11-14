@@ -338,3 +338,163 @@ func TestYouzidjRejectsMismatchedChapter(t *testing.T) {
 		t.Fatalf("invalid source id should be rejected")
 	}
 }
+
+// 站点 2026-11-14 上线入口年龄确认：未确认时 /api/catalogue/search 与
+// /api/playback/* 直接回 403，HTML 页面照常。这里按真实行为搭一个最简站点。
+func youzidjAgeGateServer(t *testing.T, ageValue func(call int32) string, require func(*http.Request) bool) (*httptest.Server, *int32) {
+	t.Helper()
+	var ageCalls int32
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/age-check":
+			call := atomic.AddInt32(&ageCalls, 1)
+			if request.Method != http.MethodPost {
+				response.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			// 站点校验来源：只带 Referer 会被判「请求来源无效」。
+			if request.Header.Get("Origin") == "" {
+				response.WriteHeader(http.StatusForbidden)
+				response.Write([]byte("请求来源无效，请刷新页面后重试"))
+				return
+			}
+			if err := request.ParseForm(); err != nil || request.PostForm.Get("decision") != "accepted" {
+				response.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			http.SetCookie(response, &http.Cookie{Name: youzidjAgeCookieName, Value: ageValue(call), Path: "/", HttpOnly: true, Secure: true})
+			response.WriteHeader(http.StatusSeeOther)
+		case "/api/catalogue/search":
+			if require != nil && !require(request) {
+				response.WriteHeader(http.StatusForbidden)
+				response.Write([]byte(`{"error":"请先完成网站入口的年龄确认"}`))
+				return
+			}
+			response.Write([]byte(youzidjSearchFixture))
+		case "/dramas/":
+			response.Write([]byte(youzidjListFixture))
+		default:
+			response.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	return server, &ageCalls
+}
+
+func youzidjHasCookie(request *http.Request, name, value string) bool {
+	for _, cookie := range request.Cookies() {
+		if cookie.Name == name && (value == "" || cookie.Value == value) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestYouzidjAgeGateEnablesSearch(t *testing.T) {
+	server, ageCalls := youzidjAgeGateServer(t,
+		func(int32) string { return "age-ok" },
+		func(request *http.Request) bool { return youzidjHasCookie(request, youzidjAgeCookieName, "age-ok") },
+	)
+	defer server.Close()
+	d := youzidjTestDownloader(server.URL, server.Client())
+
+	found, _, err := d.fetchYouzidjCatalogPage(context.Background(), 1, "", "妈妈")
+	if err != nil {
+		t.Fatalf("search after age confirmation: %v", err)
+	}
+	if len(found) != 1 || found[0].SourceID != "dramas/mama-ni-hao" {
+		t.Fatalf("search items = %+v", found)
+	}
+	// 列表页同样要能打开，且第二次请求复用缓存，不重复确认。
+	if _, _, err := d.fetchYouzidjCatalogPage(context.Background(), 1, youzidjCategoryDramas, ""); err != nil {
+		t.Fatalf("catalog: %v", err)
+	}
+	if _, _, err := d.fetchYouzidjCatalogPage(context.Background(), 1, "", "妈妈"); err != nil {
+		t.Fatalf("second search: %v", err)
+	}
+	if got := atomic.LoadInt32(ageCalls); got != 1 {
+		t.Fatalf("age confirmation should be cached, calls = %d", got)
+	}
+}
+
+// 站点换了签名、或缓存的确认过期时，要能自己重新确认一次并把本地退避清掉，
+// 否则 403 之后的 60 秒里所有请求都会被限流器挡住（就是「搜索失败后详情也打不开」）。
+func TestYouzidjAgeGateRenewsAfterForbidden(t *testing.T) {
+	server, ageCalls := youzidjAgeGateServer(t,
+		func(call int32) string {
+			if call == 1 {
+				return "age-stale"
+			}
+			return "age-fresh"
+		},
+		func(request *http.Request) bool { return youzidjHasCookie(request, youzidjAgeCookieName, "age-fresh") },
+	)
+	defer server.Close()
+	d := youzidjTestDownloader(server.URL, server.Client())
+
+	found, _, err := d.fetchYouzidjCatalogPage(context.Background(), 1, "", "妈妈")
+	if err != nil {
+		t.Fatalf("search should recover after renewal: %v", err)
+	}
+	if len(found) != 1 {
+		t.Fatalf("search items = %+v", found)
+	}
+	if got := atomic.LoadInt32(ageCalls); got != 2 {
+		t.Fatalf("should confirm age twice, calls = %d", got)
+	}
+	// 退避必须已经被清掉，否则后续列表页会被本地直接拒绝。
+	if _, _, err := d.fetchYouzidjCatalogPage(context.Background(), 1, youzidjCategoryDramas, ""); err != nil {
+		t.Fatalf("catalog after renewal: %v", err)
+	}
+}
+
+func TestYouzidjPlaybackCarriesAgeGate(t *testing.T) {
+	var sawAge int32
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.URL.Path == "/age-check":
+			http.SetCookie(response, &http.Cookie{Name: youzidjAgeCookieName, Value: "age-ok", Path: "/", HttpOnly: true, Secure: true})
+			response.WriteHeader(http.StatusSeeOther)
+		case request.URL.Path == "/dramas/bai-jie/season-1-episode-1/":
+			response.Write([]byte(youzidjEpisodeFixture))
+		case request.URL.Path == "/api/account/bootstrap":
+			http.SetCookie(response, &http.Cookie{Name: youzidjAccountCookie, Value: "guest-token", Path: "/"})
+			response.Write([]byte(`{"guest":true}`))
+		case strings.HasPrefix(request.URL.Path, "/api/playback/"):
+			if !youzidjHasCookie(request, youzidjAgeCookieName, "age-ok") {
+				response.WriteHeader(http.StatusForbidden)
+				response.Write([]byte(`{"error":"请先完成网站入口的年龄确认"}`))
+				return
+			}
+			atomic.AddInt32(&sawAge, 1)
+			payload, _ := json.Marshal(map[string]any{
+				"url":        "/media/video-a/ver-a/adaptive-cmaf-sample.m3u8",
+				"expires_at": time.Now().Add(10 * time.Minute).Unix(),
+			})
+			response.Write(payload)
+		case request.URL.Path == "/media/video-a/ver-a/adaptive-cmaf-sample.m3u8":
+			response.Write([]byte(youzidjMasterPlaylist))
+		default:
+			response.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	d := youzidjTestDownloader(server.URL, server.Client())
+
+	media, err := d.resolveYouzidjMedia(context.Background(), Task{
+		DramaID: providerDramaID(sourceYouzidj, "dramas/bai-jie"),
+		Chapter: Chapter{
+			ID:      providerChapterID(sourceYouzidj, "dramas/bai-jie", "season-1-episode-1"),
+			Source:  sourceYouzidj,
+			PageURL: server.URL + "/dramas/bai-jie/season-1-episode-1/",
+		},
+	})
+	if err != nil {
+		t.Fatalf("resolve media with age gate: %v", err)
+	}
+	if !strings.Contains(media.Playlist, "#EXTM3U") {
+		t.Fatalf("playlist not fetched: %q", media.Playlist)
+	}
+	if atomic.LoadInt32(&sawAge) == 0 {
+		t.Fatalf("playback request should carry the age cookie")
+	}
+}

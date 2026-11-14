@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -221,6 +222,36 @@ func (limiter *requestLimiter) observeBlock(request *http.Request, response *htt
 	backoffs[host] = &requestBackoff{host: host, until: time.Now().Add(delay), status: response.StatusCode}
 	limiter.notifyLocked()
 	limiter.mu.Unlock()
+}
+
+// clearHostBackoff 解除某个域名的退避。
+//
+// 站点改判时（例如 403 来自「未通过入口年龄确认」，补上凭证后即可通过）需要清掉
+// 记下来的退避，否则刚拿到的凭证根本没机会发出去，会被本地限流器直接挡回去。
+func (limiter *requestLimiter) clearHostBackoff(host string) {
+	if limiter == nil {
+		return
+	}
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return
+	}
+	limiter.mu.Lock()
+	delete(limiter.backoffs, host)
+	delete(limiter.backgroundBackoffs, host)
+	limiter.notifyLocked()
+	limiter.mu.Unlock()
+}
+
+func (d *Downloader) clearProviderBackoff(rawURL string) {
+	if d == nil || d.limiter == nil {
+		return
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return
+	}
+	d.limiter.clearHostBackoff(parsed.Hostname())
 }
 
 type limitedResponseBody struct {
