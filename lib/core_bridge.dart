@@ -108,7 +108,8 @@ abstract class AppRepository {
     bool force = false,
   }) async => const [CatalogCategory.all];
   bool get supportsSourceManagement => false;
-  Future<List<String>> suggestions(String query) async => const [];
+  Future<List<String>> suggestions(String query, {String source = ''}) async =>
+      const [];
   Future<Map<String, dynamic>> storage() async => {};
   Future<String> downloadDirectory() async =>
       (await storage())['directory'] as String? ?? '';
@@ -402,10 +403,11 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  Future<List<String>> suggestions(String query) async {
-    _authorize('hongguo');
+  Future<List<String>> suggestions(String query, {String source = ''}) async {
+    _authorize(source.isEmpty ? 'hongguo' : source);
     final result = await _read('suggestions', {
       'action': 'suggestions',
+      'source': source,
       'query': query,
     });
     return (result['items'] as List? ?? []).whereType<String>().toList();

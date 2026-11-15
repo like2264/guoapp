@@ -28,7 +28,8 @@ class SourceSite {
       id == 'youzidj' ||
       id == 'huangguo-video' ||
       id == 'huangguoai';
-  bool get searchSuggestions => id == 'hongguo';
+  // 联想词对所有站源开放：本地剧库命中即时返回，没命中再用该站源搜一次。
+  bool get searchSuggestions => true;
   String get groupId => switch (id) {
     'huangguo-video' || 'huangguoai' || 'cloudfront' => 'huangguo',
     _ => id,
