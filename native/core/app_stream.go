@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ type nativeStreamAsset struct {
 	total       int64
 	etag        string
 	modified    string
+	usedAt      time.Time
 }
 
 type nativeStreamSession struct {
@@ -60,6 +62,63 @@ type nativeStreamServer struct {
 // 分片请求挂住不返回（跨网链路丢包时尤其明显），本地流服务若一直等下去，
 // 播放器只会看到进度条卡死，最后被健康检查判死；这里主动掐断让播放器重发。
 const nativeStreamIdleTimeout = 30 * time.Second
+
+// 站点对带 Range 的请求也回整段 200（实测该站分片不支持 Range），
+// 播放器每次拖动都要整段重下；跨网链路一段就要 0.6~1.3 秒，连续拖几下
+// 播放器就会放弃并报 EOF。这里把装得下的分片整段读进来：
+// 本地就能按 Range 切片、Content-Length 也是精确值，重复拖动不再走网络。
+const (
+	nativeSegmentBufferLimit = 16 << 20
+	nativeSegmentCacheBytes  = 32 << 20
+)
+
+// nativeCacheAsset 把整段分片存进会话缓存，并按内存预算淘汰旧分片。
+func (stream *nativeStreamServer) nativeCacheAsset(session *nativeStreamSession, id string, data []byte, contentType string) {
+	if len(data) == 0 {
+		return
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	asset, found := session.assets[id]
+	if !found {
+		return
+	}
+	asset.data = data
+	asset.total = 0
+	asset.usedAt = time.Now()
+	if asset.contentType == "" {
+		asset.contentType = contentType
+	}
+	session.assets[id] = asset
+	total := int64(0)
+	for _, item := range session.assets {
+		total += int64(len(item.data))
+	}
+	if total <= nativeSegmentCacheBytes {
+		return
+	}
+	type cached struct {
+		id   string
+		used time.Time
+	}
+	items := make([]cached, 0, len(session.assets))
+	for key, item := range session.assets {
+		if key == id || len(item.data) == 0 || item.kind == "entry_playlist" || item.kind == "child_playlist" {
+			continue
+		}
+		items = append(items, cached{id: key, used: item.usedAt})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].used.Before(items[j].used) })
+	for _, item := range items {
+		if total <= nativeSegmentCacheBytes {
+			break
+		}
+		dropped := session.assets[item.id]
+		total -= int64(len(dropped.data))
+		dropped.data = nil
+		session.assets[item.id] = dropped
+	}
+}
 
 // nativeIdleBody 在读取上游响应体时不断重置空闲计时器，读取中断就取消请求。
 type nativeIdleBody struct {
@@ -159,15 +218,23 @@ func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, strin
 			delete(stream.sessions, id)
 		}
 	}
-	if len(stream.sessions) >= 8 {
+	if len(stream.sessions) >= 16 {
+		// 只淘汰确实空闲的会话。之前按「最久未用」无条件淘汰，正在播的那条
+		// 有可能被刚开出来的预加载会话挤掉，之后所有分片都回 410，播放器
+		// 直接当成 EOF，于是「卡一下 → 自动跳下一集」。
 		oldest := ""
 		for id, old := range stream.sessions {
+			if time.Since(old.lastUsed) < 2*time.Minute {
+				continue
+			}
 			if oldest == "" || old.lastUsed.Before(stream.sessions[oldest].lastUsed) {
 				oldest = id
 			}
 		}
-		stream.nativeCancel(stream.sessions[oldest], "capacity_eviction")
-		delete(stream.sessions, oldest)
+		if oldest != "" {
+			stream.nativeCancel(stream.sessions[oldest], "capacity_eviction")
+			delete(stream.sessions, oldest)
+		}
 	}
 	stream.sessions[token] = session
 	stream.mu.Unlock()
@@ -510,6 +577,27 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 		}
 		writer.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		_, _ = io.WriteString(writer, rewritten)
+		return
+	}
+	// 分片整段读进内存再本地切 Range：站点不认 Range，只有整段 200；
+	// 播放器拖动时若拿到「整段 + 无精确长度」，跨网一慢就会放弃并报 EOF，
+	// 上层只能看到「播完了」，于是自动跳下一集。这里补齐 Content-Length
+	// 与 Range 支持，并把分片留在会话缓存里供重复拖动复用。
+	// 上游已经自己按 Range 回了 206 的，保持原样透传，别二次切片。
+	if request.Method != http.MethodHead &&
+		response.StatusCode == http.StatusOK &&
+		(asset.kind == "segment" || asset.kind == "map") &&
+		response.ContentLength > 0 &&
+		response.ContentLength <= nativeSegmentBufferLimit {
+		buffered, readErr := io.ReadAll(io.LimitReader(reader, nativeSegmentBufferLimit+1))
+		if readErr == nil && int64(len(buffered)) == response.ContentLength {
+			stream.nativeCacheAsset(session, parts[1], buffered, response.Header.Get("Content-Type"))
+			writer.Header().Set("Content-Type", response.Header.Get("Content-Type"))
+			http.ServeContent(writer, request, parts[1], time.Time{}, bytes.NewReader(buffered))
+			return
+		}
+		stream.nativeLogError(info, "segment_buffer_failed", finalURL.String(), readErr, "")
+		http.Error(writer, "读取媒体失败，请重试", http.StatusBadGateway)
 		return
 	}
 	for _, name := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified"} {
