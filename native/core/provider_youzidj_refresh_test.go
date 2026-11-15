@@ -112,3 +112,59 @@ func TestStreamWithoutRefreshReportsForbidden(t *testing.T) {
 		t.Fatalf("status = %d, want 403", response.StatusCode)
 	}
 }
+
+// 凭证到期后 apply 会在本地直接把请求挡回来（根本没发到站点），
+// 这条路径以前直接变成 502。现在要续领一次再取流。
+func TestStreamRefreshesLocallyExpiredCredentials(t *testing.T) {
+	var hits, refreshes int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		if !strings.Contains(r.Header.Get("Cookie"), "eden_play_v=fresh") {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = io.WriteString(w, "segment-after-refresh")
+	}))
+	defer server.Close()
+
+	d := youzidjTestDownloader(server.URL, server.Client())
+	stream, err := newNativeStreamServer(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.server.Close()
+
+	media := providerMedia{
+		URL: server.URL + "/seg.m4s", Referer: server.URL + "/dramas/demo/",
+		credentials: &providerMediaCredentials{
+			origin: server.URL, cookie: "eden_play_v=stale", referer: server.URL + "/dramas/demo/",
+			userAgent: youzidjUserAgent, expires: time.Now().Add(-time.Minute),
+		},
+		refresh: func(context.Context) (*providerMediaCredentials, error) {
+			atomic.AddInt32(&refreshes, 1)
+			return &providerMediaCredentials{
+				origin: server.URL, cookie: "eden_play_v=fresh", referer: server.URL + "/dramas/demo/",
+				userAgent: youzidjUserAgent, expires: time.Now().Add(time.Hour),
+			}, nil
+		},
+	}
+	address, token := stream.nativeOpen(media)
+	defer stream.nativeRelease(token)
+
+	response, err := http.Get(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(response.Body)
+	if response.StatusCode != http.StatusOK || string(body) != "segment-after-refresh" {
+		t.Fatalf("stream = %d %q, want 200", response.StatusCode, string(body))
+	}
+	if atomic.LoadInt32(&refreshes) != 1 {
+		t.Fatalf("refresh calls = %d, want 1", refreshes)
+	}
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Fatalf("upstream hits = %d, want 1（过期请求不应发出）", hits)
+	}
+}

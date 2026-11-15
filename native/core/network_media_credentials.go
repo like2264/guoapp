@@ -19,6 +19,15 @@ type providerMediaCredentials struct {
 
 type providerMediaCredentialsKey struct{}
 
+// errProviderMediaExpired 本地判定凭证已过期（还没发请求就拦下来）。
+// 流服务按这个错误决定要不要续领一次再重试。
+var errProviderMediaExpired = errors.New("播放凭证已过期，请重新解析播放")
+
+// expiringWithin 判断凭证是否在 window 内到期，用于提前续领。
+func (credentials *providerMediaCredentials) expiringWithin(window time.Duration, now time.Time) bool {
+	return credentials != nil && !credentials.expires.IsZero() && now.Add(window).After(credentials.expires)
+}
+
 func providerMediaContext(ctx context.Context, credentials *providerMediaCredentials) context.Context {
 	return context.WithValue(ctx, providerMediaCredentialsKey{}, credentials)
 }
@@ -48,7 +57,7 @@ func (credentials *providerMediaCredentials) apply(request *http.Request) error 
 	}
 	if providerMediaOrigin(request.URL) == credentials.origin {
 		if !credentials.expires.IsZero() && !time.Now().Before(credentials.expires) {
-			return errors.New("播放凭证已过期，请重新解析播放")
+			return errProviderMediaExpired
 		}
 		request.Header.Set("Cookie", credentials.cookie)
 	}

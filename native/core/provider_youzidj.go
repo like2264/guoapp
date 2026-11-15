@@ -68,15 +68,18 @@ var (
 	reYouzidjNextPageAlt  = regexp.MustCompile(`(?is)<a[^>]*href="([^"]+)"[^>]*rel="next"`)
 	reYouzidjPageCount    = regexp.MustCompile(`(?is)data-pages="(\d+)"`)
 	reYouzidjEpisodeLink  = regexp.MustCompile(`href="(?:https?://[^"/]+)?/dramas/([a-z0-9][a-z0-9-]*)/season-(\d+)-episode-(\d+)/"`)
-	reYouzidjLdJSON       = regexp.MustCompile(`(?is)<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>`)
-	reYouzidjPlayer       = regexp.MustCompile(`(?is)<section[^>]*id="player"[^>]*>`)
-	reYouzidjDataVideo    = regexp.MustCompile(`data-video="([^"]+)"`)
-	reYouzidjTagLink      = regexp.MustCompile(`(?is)<a[^>]*href="(?:https?://[^"/]+)?/tags/([a-z0-9-]+)/"[^>]*>(.*?)</a>`)
-	reYouzidjOGImage      = regexp.MustCompile(`(?is)<meta[^>]*property="og:image"[^>]*content="([^"]+)"`)
-	reYouzidjOGTitle      = regexp.MustCompile(`(?is)<meta[^>]*property="og:title"[^>]*content="([^"]+)"`)
-	reYouzidjHTMLTag      = regexp.MustCompile(`(?is)<[^>]+>`)
-	reYouzidjSlug         = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,79}$`)
-	reYouzidjCode         = regexp.MustCompile(`^[a-z0-9]{4,32}$`)
+	// 新上架的作品把分集页换成了 /dramas/{slug}/{n}/，老的
+	// /dramas/{slug}/season-1-episode-{n}/ 直接 404。
+	reYouzidjEpisodePath = regexp.MustCompile(`href="(?:https?://[^"/]+)?/dramas/([a-z0-9][a-z0-9-]*)/(\d+)/"`)
+	reYouzidjLdJSON      = regexp.MustCompile(`(?is)<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>`)
+	reYouzidjPlayer      = regexp.MustCompile(`(?is)<section[^>]*id="player"[^>]*>`)
+	reYouzidjDataVideo   = regexp.MustCompile(`data-video="([^"]+)"`)
+	reYouzidjTagLink     = regexp.MustCompile(`(?is)<a[^>]*href="(?:https?://[^"/]+)?/tags/([a-z0-9-]+)/"[^>]*>(.*?)</a>`)
+	reYouzidjOGImage     = regexp.MustCompile(`(?is)<meta[^>]*property="og:image"[^>]*content="([^"]+)"`)
+	reYouzidjOGTitle     = regexp.MustCompile(`(?is)<meta[^>]*property="og:title"[^>]*content="([^"]+)"`)
+	reYouzidjHTMLTag     = regexp.MustCompile(`(?is)<[^>]+>`)
+	reYouzidjSlug        = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,79}$`)
+	reYouzidjCode        = regexp.MustCompile(`^[a-z0-9]{4,32}$`)
 )
 
 // youzidjCategories 是站点首页导航里的一级栏目。站点把「AI短剧 / AI换脸 /
@@ -481,6 +484,9 @@ type youzidjEpisodeKey struct {
 // youzidjChaptersFromSeries 从系列页里的分集链接还原分集表。站点一季一页，
 // 但系列页会把所有季的分集链接平铺出来，所以这里按 (季, 集) 排序后再连续编号，
 // 单季剧只显示「第N集」，多季剧带上季号。
+//
+// 新上架的作品用的是另一套地址：/dramas/{slug}/{n}/（没有 season 段），
+// 老地址直接 404。两种形式都在这里兼容，返回的 PageURL 就是实际能打开的地址。
 func youzidjChaptersFromSeries(body, sourceID, site string) []Chapter {
 	_, slug := youzidjSplitSourceID(sourceID)
 	if slug == "" {
@@ -489,6 +495,8 @@ func youzidjChaptersFromSeries(body, sourceID, site string) []Chapter {
 	seen := map[youzidjEpisodeKey]bool{}
 	keys := make([]youzidjEpisodeKey, 0, 64)
 	seasons := map[int]bool{}
+	// flat 表示这是新版「一个 slug 一季」的平铺地址，章节键就是集号本身。
+	flat := false
 	for _, match := range reYouzidjEpisodeLink.FindAllStringSubmatch(body, -1) {
 		if match[1] != slug {
 			continue
@@ -506,6 +514,25 @@ func youzidjChaptersFromSeries(body, sourceID, site string) []Chapter {
 		seasons[season] = true
 		keys = append(keys, key)
 	}
+	if len(keys) == 0 {
+		for _, match := range reYouzidjEpisodePath.FindAllStringSubmatch(body, -1) {
+			if match[1] != slug {
+				continue
+			}
+			number, numberErr := strconv.Atoi(match[2])
+			if numberErr != nil || number < 1 || len(keys) >= youzidjMaxEpisodes {
+				continue
+			}
+			key := youzidjEpisodeKey{season: 1, episode: number}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			seasons[1] = true
+			keys = append(keys, key)
+		}
+		flat = len(keys) > 0
+	}
 	sort.SliceStable(keys, func(i, j int) bool {
 		if keys[i].season != keys[j].season {
 			return keys[i].season < keys[j].season
@@ -516,6 +543,9 @@ func youzidjChaptersFromSeries(body, sourceID, site string) []Chapter {
 	chapters := make([]Chapter, 0, len(keys))
 	for index, key := range keys {
 		chapterKey := fmt.Sprintf("season-%d-episode-%d", key.season, key.episode)
+		if flat {
+			chapterKey = strconv.Itoa(key.episode)
+		}
 		title := fmt.Sprintf("第%d集", key.episode)
 		if multiSeason {
 			title = fmt.Sprintf("第%d季 第%d集", key.season, key.episode)

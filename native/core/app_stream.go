@@ -56,12 +56,44 @@ type nativeStreamServer struct {
 	server     *http.Server
 }
 
+// nativeStreamIdleTimeout 是上游「一直没有新数据」的容忍时间。站点偶尔会把
+// 分片请求挂住不返回（跨网链路丢包时尤其明显），本地流服务若一直等下去，
+// 播放器只会看到进度条卡死，最后被健康检查判死；这里主动掐断让播放器重发。
+const nativeStreamIdleTimeout = 30 * time.Second
+
+// nativeIdleBody 在读取上游响应体时不断重置空闲计时器，读取中断就取消请求。
+type nativeIdleBody struct {
+	io.ReadCloser
+	timer  *time.Timer
+	cancel context.CancelFunc
+}
+
+func (body *nativeIdleBody) Read(chunk []byte) (int, error) {
+	read, err := body.ReadCloser.Read(chunk)
+	if read > 0 {
+		body.timer.Reset(nativeStreamIdleTimeout)
+	}
+	return read, err
+}
+
+func (body *nativeIdleBody) Close() error {
+	body.timer.Stop()
+	err := body.ReadCloser.Close()
+	body.cancel()
+	return err
+}
+
 func (stream *nativeStreamServer) nativeRequest(request *http.Request) (*http.Response, error) {
 	client := *stream.downloader.client
 	client.Timeout = 0
+	idleContext, releaseIdle := context.WithCancel(request.Context())
+	request = request.WithContext(idleContext)
+	idle := time.AfterFunc(nativeStreamIdleTimeout, releaseIdle)
 	info, _ := request.Context().Value(nativeStreamDiagnosticKey{}).(nativeStreamDiagnostic)
 	response, err := stream.downloader.doMediaRequestWithClient(request, &client)
 	if err != nil {
+		idle.Stop()
+		releaseIdle()
 		stream.nativeLogError(info, "upstream_error", request.URL.String(), err, "")
 		return response, err
 	}
@@ -72,8 +104,30 @@ func (stream *nativeStreamServer) nativeRequest(request *http.Request) (*http.Re
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
 		stream.nativeLog(info, "upstream_status", address, "", response.StatusCode, response.Header.Get("Content-Type"))
 	}
-	response.Body = &nativeDiagnosticBody{ReadCloser: response.Body, stream: stream, info: info, address: address}
+	body := &nativeDiagnosticBody{ReadCloser: response.Body, stream: stream, info: info, address: address}
+	response.Body = &nativeIdleBody{ReadCloser: body, timer: idle, cancel: releaseIdle}
 	return response, nil
+}
+
+// nativeReplay 用给定凭证重发一次原始请求，保留 Range/If-Range。
+// 返回的请求对象用于错误信息里带上真实地址。
+func (stream *nativeStreamServer) nativeReplay(ctx context.Context, session *nativeStreamSession, original *http.Request, address string, credentials *providerMediaCredentials) (*http.Response, *http.Request) {
+	replay, err := http.NewRequestWithContext(providerMediaContext(ctx, credentials), original.Method, address, nil)
+	if err != nil {
+		return nil, nil
+	}
+	replay.Header.Set("User-Agent", userAgent)
+	replay.Header.Set("Referer", session.referer)
+	for _, name := range []string{"Range", "If-Range"} {
+		if value := original.Header.Get(name); value != "" {
+			replay.Header.Set(name, value)
+		}
+	}
+	response, err := stream.nativeRequest(replay)
+	if err != nil {
+		return nil, nil
+	}
+	return response, replay
 }
 
 var nativePlaylistURI = regexp.MustCompile(`URI="([^"]+)"`)
@@ -317,7 +371,15 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 		http.NotFound(writer, request)
 		return
 	}
-	ctx, cancel := context.WithCancel(providerMediaContext(request.Context(), session.credentialSnapshot()))
+	// 凭证快到点就提前续一次：等到真正过期时，apply 会在本地直接把请求挡回来，
+	// 这时再去续领已经晚了一拍（之前拖动进度卡死就是这条路径）。
+	credentials := session.credentialSnapshot()
+	if credentials.expiringWithin(60*time.Second, time.Now()) {
+		if fresh := session.refreshCredential(request.Context()); fresh != nil {
+			credentials = fresh
+		}
+	}
+	ctx, cancel := context.WithCancel(providerMediaContext(request.Context(), credentials))
 	defer cancel()
 	ctx = context.WithValue(ctx, nativeStreamDiagnosticKey{}, info)
 	stop := context.AfterFunc(session.ctx, cancel)
@@ -363,6 +425,16 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 		}
 	}
 	response, err := stream.nativeRequest(upstream)
+	// 本地判定凭证过期时请求根本没发出去。这时续领一次再原样重发，
+	// 否则拖到未缓冲位置会直接拿到 502，播放器只能黑屏。
+	if err != nil && errors.Is(err, errProviderMediaExpired) {
+		if fresh := session.refreshCredential(ctx); fresh != nil {
+			if retried, retriedRequest := stream.nativeReplay(ctx, session, request, asset.address, fresh); retried != nil {
+				response, upstream, err = retried, retriedRequest, nil
+				stream.nativeLog(info, "credential_refreshed", asset.address, "trigger=expired", retried.StatusCode, "")
+			}
+		}
+	}
 	if err != nil {
 		http.Error(writer, "读取媒体失败，请重试", http.StatusBadGateway)
 		return
@@ -374,19 +446,9 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 		response.Body.Close()
 		if fresh := session.refreshCredential(ctx); fresh != nil {
-			retry, retryErr := http.NewRequestWithContext(providerMediaContext(ctx, fresh), request.Method, asset.address, nil)
-			if retryErr == nil {
-				retry.Header.Set("User-Agent", userAgent)
-				retry.Header.Set("Referer", session.referer)
-				for _, name := range []string{"Range", "If-Range"} {
-					if value := request.Header.Get(name); value != "" {
-						retry.Header.Set(name, value)
-					}
-				}
-				if retried, retryErr := stream.nativeRequest(retry); retryErr == nil {
-					response, upstream = retried, retry
-					stream.nativeLog(info, "credential_refreshed", asset.address, "", response.StatusCode, "")
-				}
+			if retried, retriedRequest := stream.nativeReplay(ctx, session, request, asset.address, fresh); retried != nil {
+				response, upstream = retried, retriedRequest
+				stream.nativeLog(info, "credential_refreshed", asset.address, "", response.StatusCode, "")
 			}
 		}
 		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {

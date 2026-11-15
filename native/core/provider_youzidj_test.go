@@ -498,3 +498,46 @@ func TestYouzidjPlaybackCarriesAgeGate(t *testing.T) {
 		t.Fatalf("playback request should carry the age cookie")
 	}
 }
+
+// 新版作品的分集页是 /dramas/{slug}/{n}/，老地址 404。
+const youzidjFlatSeriesFixture = `<html><head>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TVSeries","name":"测试剧集丙","description":"平铺分集简介","url":"https://youzidj.com/dramas/xbc34c02/","image":"https://pic.example.test/cover-d.webp","numberOfEpisodes":3,"numberOfSeasons":1}</script>
+</head><body>
+<div class="episode-grid">
+<a href="/dramas/xbc34c02/1/">1</a>
+<a href="/dramas/xbc34c02/2/">2</a>
+<a href="/dramas/xbc34c02/3/">3</a>
+</div></body></html>`
+
+func TestYouzidjFlatEpisodePaths(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/dramas/xbc34c02/":
+			response.Write([]byte(youzidjFlatSeriesFixture))
+		default:
+			response.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	d := youzidjTestDownloader(server.URL, server.Client())
+
+	drama, chapters, err := d.fetchYouzidjDetail(context.Background(), "dramas/xbc34c02")
+	if err != nil {
+		t.Fatalf("flat detail error = %v", err)
+	}
+	if len(chapters) != 3 {
+		t.Fatalf("flat chapters = %d，站点共 3 集", len(chapters))
+	}
+	if drama.Title != "测试剧集丙" || drama.EpisodeCount != 3 {
+		t.Fatalf("flat drama = %+v", drama)
+	}
+	if chapters[0].Title != "第1集" || chapters[2].Title != "第3集" {
+		t.Fatalf("flat titles = %q ... %q", chapters[0].Title, chapters[2].Title)
+	}
+	if chapters[0].PageURL != server.URL+"/dramas/xbc34c02/1/" {
+		t.Fatalf("flat page url = %q", chapters[0].PageURL)
+	}
+	if chapters[2].PageURL != server.URL+"/dramas/xbc34c02/3/" {
+		t.Fatalf("flat page url = %q", chapters[2].PageURL)
+	}
+}
