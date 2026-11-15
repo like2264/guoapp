@@ -186,15 +186,22 @@ class _DuanjuAppState extends State<DuanjuApp> with WidgetsBindingObserver {
     final seed =
         systemColor ?? Color((store?.themeColor ?? ThemeColor.orange).seed);
     final pureBlack = store?.pureBlack ?? false;
-    if ((seed, television, pureBlack) != _themeKey) {
-      _themeKey = (seed, television, pureBlack);
+    final liquidGlass = store?.liquidGlass ?? false;
+    if ((seed, television, pureBlack, liquidGlass) != _themeKey) {
+      _themeKey = (seed, television, pureBlack, liquidGlass);
       _themes = (
-        AppTheme.build(seed, Brightness.light, television: television),
+        AppTheme.build(
+          seed,
+          Brightness.light,
+          television: television,
+          liquidGlass: liquidGlass,
+        ),
         AppTheme.build(
           seed,
           Brightness.dark,
           television: television,
           pureBlack: pureBlack,
+          liquidGlass: liquidGlass,
         ),
       );
     }
