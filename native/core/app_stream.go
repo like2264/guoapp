@@ -15,6 +15,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -596,7 +597,39 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 			http.ServeContent(writer, request, parts[1], time.Time{}, bytes.NewReader(buffered))
 			return
 		}
-		stream.nativeLogError(info, "segment_buffer_failed", finalURL.String(), readErr, "")
+		// 上游掐流、空闲超时或长度对不上。以前这里直接回 502，但播放器的
+		// HLS 解复用器（ffmpeg hls）把 5xx 当成「这条流结束了」，上层看到
+		// 的就是「播到一半自己跳下一集」。现在先原地重试一次上游：能读全
+		// 就照常出，两次都读不全就把已经拿到的那部分按精确长度回 200，
+		// 让播放器自己重试这一片，而不是整集结束。
+		stream.nativeLogError(info, "segment_partial", finalURL.String(), readErr, "")
+		response.Body.Close()
+		if retried, _ := stream.nativeReplay(ctx, session, request, asset.address, session.credentialSnapshot()); retried != nil {
+			if retried.StatusCode == http.StatusOK &&
+				retried.ContentLength > 0 &&
+				retried.ContentLength <= nativeSegmentBufferLimit {
+				second, secondErr := io.ReadAll(io.LimitReader(retried.Body, nativeSegmentBufferLimit+1))
+				if secondErr == nil && int64(len(second)) == retried.ContentLength {
+					retried.Body.Close()
+					stream.nativeCacheAsset(session, parts[1], second, retried.Header.Get("Content-Type"))
+					writer.Header().Set("Content-Type", retried.Header.Get("Content-Type"))
+					http.ServeContent(writer, request, parts[1], time.Time{}, bytes.NewReader(second))
+					stream.nativeLog(info, "segment_retried", finalURL.String(), "attempt=2", retried.StatusCode, "")
+					return
+				}
+				if len(second) > len(buffered) {
+					buffered = second
+				}
+			}
+			retried.Body.Close()
+		}
+		if len(buffered) > 0 {
+			writer.Header().Set("Content-Type", response.Header.Get("Content-Type"))
+			writer.Header().Set("Content-Length", strconv.Itoa(len(buffered)))
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(buffered)
+			return
+		}
 		http.Error(writer, "读取媒体失败，请重试", http.StatusBadGateway)
 		return
 	}
