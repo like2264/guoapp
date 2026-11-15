@@ -73,7 +73,7 @@ class PlaybackSession extends ChangeNotifier {
         foreground: _foreground,
         now: DateTime.now(),
       )) {
-        unawaited(_recover('position_stalled_20s'));
+        unawaited(_recover('position_stalled_40s'));
       }
     });
     unawaited(play(index, position: position, playWhenReady: autoplay));

@@ -554,9 +554,14 @@ class NativeRepository extends AppRepository {
       }
       if (action == 'recommendations' ||
           action == 'cachedRecommendations' ||
-          action == 'suggestions' ||
           action == 'danmaku') {
         _authorize('hongguo');
+      }
+      // 联想词已经开放给所有站源，不能再按红果鉴权：红果关掉时
+      // 其他站源的联想会整条被拒。
+      if (action == 'suggestions') {
+        final source = input['source'] as String? ?? '';
+        if (source.isNotEmpty) _authorize(source);
       }
       if ({'catalog', 'cached', 'categories'}.contains(action)) {
         _authorize(input['source'] as String);
