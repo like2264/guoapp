@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../local_store.dart';
 import '../../theme_color.dart';
 import '../app_scope.dart';
+import '../theme/glass.dart';
 import '../theme/motion.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/group_card.dart';
@@ -65,9 +66,43 @@ class AppearanceSettings extends StatelessWidget {
               title: '纯黑深色模式',
               subtitle: '深色时背景改为纯黑，适合 OLED 屏幕',
               value: store.pureBlack,
-              onChanged: (value) =>
-                  saveSetting(context, () => store.setPureBlack(value)),
+              onChanged: (value) => saveSetting(context, () async {
+                await store.setPureBlack(value);
+                if (value) await store.setLiquidGlass(false);
+              }),
             ),
+            const Divider(indent: 16, endIndent: 16),
+            SwitchTile(
+              title: 'Liquid Glass 外观',
+              subtitle: '半透明玻璃质感：背景模糊、细高光边、悬浮式播控栏',
+              value: store.liquidGlass,
+              onChanged: (value) => saveSetting(context, () async {
+                await store.setLiquidGlass(value);
+                if (value) await store.setPureBlack(false);
+              }),
+            ),
+            if (store.liquidGlass)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: GlassPanel(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '玻璃卡片示例：半透明底色 + 背景模糊 + 高光边',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const Divider(indent: 16, endIndent: 16),
             TileFocus(
               builder: (focusNode) => SwitchListTile(
