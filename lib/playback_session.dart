@@ -98,6 +98,7 @@ class PlaybackSession extends ChangeNotifier {
         if (!_closed && _openedIndex == _index && position > Duration.zero) {
           _resumePosition = position.inMilliseconds / 1000;
         }
+        _trackPlayed(position);
         _sync();
       }),
       stream.playing.listen((playing) {
@@ -181,6 +182,13 @@ class PlaybackSession extends ChangeNotifier {
   DateTime? _seekedAt;
   Duration? _seekTarget;
   double? _recoverPosition;
+  // 光看「位置≈时长」判断不出真假结束：播放器把「分片没到」当成片尾时，
+  // 会直接把位置钳到时长再报结束，表面和真播完一模一样。真正能分辨的是
+  // 「这一段到底播了多久」——真播完时它几乎等于剩余时长，假结束时差得远。
+  double _playedSeconds = 0;
+  double _sessionStart = 0;
+  Duration? _lastTick;
+  Duration? _lastGoodPosition;
 
   Player get player => _player;
 
@@ -350,37 +358,95 @@ class PlaybackSession extends ChangeNotifier {
     _queueRecovery('player_error');
   }
 
+  /// 累计「真正播过」的秒数：只认正常推进（0 < 增量 <= 4 秒）。
+  /// 拖进度、跳集、以及播放器把位置钳到片尾都会造成大跳，一律不记；
+  /// 顺便把最后一个正常位置留下来，假结束时当断点用。
+  void _trackPlayed(Duration position) {
+    final last = _lastTick;
+    _lastTick = position;
+    if (last == null) return;
+    final delta = position - last;
+    if (delta <= Duration.zero || delta > const Duration(seconds: 4)) return;
+    _playedSeconds += delta.inMilliseconds / 1000;
+    _lastGoodPosition = position;
+  }
+
+  /// 一次播放会话重新计数：换集、重新解析、拖动之后都从头算，
+  /// 这样「实际播了多久」对得上「这一段本来该有多长」。
+  void _resetPlayed(double start) {
+    _playedSeconds = 0;
+    _sessionStart = start;
+    _lastTick = null;
+    _lastGoodPosition = null;
+  }
+
   void _completed(bool completed) {
     if (!completed || _loading || _closed || !_acceptErrors || _error != null) {
       return;
     }
     final duration = player.state.duration;
     final position = player.state.position;
+    final seconds = duration.inMilliseconds / 1000;
+    final played = _playedSeconds;
     DiaryService.add(
-      '[Play] 播放器报告结束 位置=${position.inSeconds}s 时长=${duration.inSeconds}s 有下集=$hasNext',
+      '[Play] 播放器报告结束 位置=${position.inSeconds}s 时长=${duration.inSeconds}s 实际播放=${played.toStringAsFixed(0)}s 有下集=$hasNext',
     );
-    // 拖到白色缓存线之外时，播放器取不到分片会直接报 EOF。以前这里把它当成
-    // 真的播完：位置≈时长就静默跳到下一集，重试用尽再停住（黑屏、拖动也没反应）。
-    // 落到「拖动后 25 秒内、且不是拖到片尾 12 秒以内」这种结束，一律先按
-    // 拖动目标重新解析播放，不跳集。
     final seekedAt = _seekedAt;
     final target = _seekTarget;
-    if (seekedAt != null &&
-        DateTime.now().difference(seekedAt) < const Duration(seconds: 25) &&
-        (duration <= Duration.zero ||
-            target == null ||
-            target < duration - const Duration(seconds: 12))) {
-      _seekedAt = null;
-      _seekTarget = null;
-      _recoverPosition =
-          (target ?? Duration(milliseconds: (position.inMilliseconds)))
-              .inMilliseconds /
-          Duration.millisecondsPerSecond;
-      DiaryService.add(
-        '[Play] 拖动后提前结束，改从 ${_recoverPosition!.toStringAsFixed(1)}s 重新解析，不跳集',
-      );
-      _queueRecovery('seek_eof');
-      return;
+    final recentSeek =
+        seekedAt != null &&
+        DateTime.now().difference(seekedAt) < const Duration(seconds: 25);
+    // 用户自己把进度拖到片尾附近，就是主动看完，按正常结束处理。
+    final skippedToEnd =
+        recentSeek &&
+        target != null &&
+        duration > Duration.zero &&
+        target >= duration - const Duration(seconds: 12);
+    if (!skippedToEnd) {
+      // 拖到白色缓存线之外时，播放器取不到分片会直接报 EOF。落到「拖动后
+      // 25 秒内、且不是拖到片尾」这种结束，先按拖动目标重新解析，不跳集。
+      if (recentSeek &&
+          (duration <= Duration.zero ||
+              target == null ||
+              target < duration - const Duration(seconds: 12))) {
+        _seekedAt = null;
+        _seekTarget = null;
+        _recoverPosition =
+            (target ?? Duration(milliseconds: position.inMilliseconds))
+                .inMilliseconds /
+            Duration.millisecondsPerSecond;
+        DiaryService.add(
+          '[Play] 拖动后提前结束，改从 ${_recoverPosition!.toStringAsFixed(1)}s 重新解析，不跳集',
+        );
+        _queueRecovery('seek_eof');
+        return;
+      }
+      // 分片迟迟不到时播放器也会报结束：它把位置直接钳到时长，看起来和
+      // 真播完一模一样。区别在于这一段实际只播了一小会儿，远没到剩余时长。
+      final remaining = seconds - _sessionStart;
+      if (seconds > 0 &&
+          remaining > 8 &&
+          played < remaining - 8 &&
+          position >= duration - const Duration(seconds: 3)) {
+        final lastGood =
+            _lastGoodPosition ??
+            Duration(
+              milliseconds: (_sessionStart * Duration.millisecondsPerSecond)
+                  .round(),
+            );
+        // 往回退 2 秒：出错的那一片往往就在断点处，重解析时让它重新取一次。
+        final back = lastGood - const Duration(seconds: 2);
+        _recoverPosition =
+            (back > Duration.zero ? back : Duration.zero).inMilliseconds /
+            Duration.millisecondsPerSecond;
+        _seekedAt = null;
+        _seekTarget = null;
+        DiaryService.add(
+          '[Play] 播放器把分片没到当成片尾（实际只播了 ${played.toStringAsFixed(0)}s，本段应有 ${remaining.toStringAsFixed(0)}s），改从 ${_recoverPosition!.toStringAsFixed(1)}s 继续，不跳集',
+        );
+        _queueRecovery('truncated_eof');
+        return;
+      }
     }
     if (duration <= Duration.zero ||
         position < duration - const Duration(seconds: 2)) {
@@ -510,7 +576,9 @@ class PlaybackSession extends ChangeNotifier {
           'decryption_key=${plan.decryptionKey}',
       ].join(','),
     );
-    await platform.setProperty('network-timeout', '20');
+    // 本机流服务会先自己扛住上游抖动（空闲 30 秒才掐断、失败还会重试一次），
+    // 播放器这边的超时必须比它宽，否则分片还在重试就被判成 EOF、整集结束。
+    await platform.setProperty('network-timeout', '45');
   }
 
   Future<void> play(
@@ -559,6 +627,7 @@ class PlaybackSession extends ChangeNotifier {
     }
     _resumePosition = position;
     _openedAt = position;
+    _resetPlayed(position);
     _index = index;
     _loading = true;
     _error = null;
@@ -837,6 +906,8 @@ class PlaybackSession extends ChangeNotifier {
     danmaku.beginSeek();
     _seekedAt = DateTime.now();
     _seekTarget = target;
+    _resetPlayed(target.inMilliseconds / Duration.millisecondsPerSecond);
+    _lastGoodPosition = target;
     var succeeded = false;
     try {
       await player.seek(target);
