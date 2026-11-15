@@ -205,8 +205,10 @@ class _SearchPageState extends State<SearchPage> {
     final style = Theme.of(context).textTheme.bodyLarge;
     if (query.isEmpty) return TextSpan(text: title, style: style);
     final index = title.toLowerCase().indexOf(query.toLowerCase());
-    if (index < 0) return TextSpan(text: title, style: style);
     final end = index + query.length;
+    if (index < 0 || end > title.length) {
+      return TextSpan(text: title, style: style);
+    }
     return TextSpan(
       style: style,
       children: [
