@@ -112,9 +112,12 @@ class _SearchPageState extends State<SearchPage> {
       setState(() => _suggestions = const []);
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 250), () async {
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
       try {
-        final items = await _repository.suggestions(query);
+        final items = await _repository.suggestions(
+          query,
+          source: widget.source.id,
+        );
         if (mounted && generation == _suggestion) {
           setState(() => _suggestions = items);
         }
@@ -196,6 +199,30 @@ class _SearchPageState extends State<SearchPage> {
     },
   );
 
+  // 联想词里把命中的关键词标出来，扫一眼就知道为什么被推荐。
+  TextSpan _suggestionSpan(BuildContext context, String title) {
+    final query = _controller.text.trim();
+    final style = Theme.of(context).textTheme.bodyLarge;
+    if (query.isEmpty) return TextSpan(text: title, style: style);
+    final index = title.toLowerCase().indexOf(query.toLowerCase());
+    if (index < 0) return TextSpan(text: title, style: style);
+    final end = index + query.length;
+    return TextSpan(
+      style: style,
+      children: [
+        TextSpan(text: title.substring(0, index)),
+        TextSpan(
+          text: title.substring(index, end),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        TextSpan(text: title.substring(end)),
+      ],
+    );
+  }
+
   Widget _body(BuildContext context) {
     final television = AppScope.of(context).television;
     if (_suggestions.isNotEmpty && _controller.text.trim() != _submitted) {
@@ -215,7 +242,7 @@ class _SearchPageState extends State<SearchPage> {
                 builder: (focusNode) => ListTile(
                   focusNode: focusNode,
                   leading: const Icon(Icons.search_rounded),
-                  title: Text(item),
+                  title: Text.rich(_suggestionSpan(context, item)),
                   onTap: () => _submit(item),
                 ),
               ),
