@@ -273,7 +273,8 @@ class FakeRepository extends AppRepository {
       cachedPages['$source|$category'] ?? CatalogPage(const []);
 
   @override
-  Future<List<String>> suggestions(String query) async => suggestionList;
+  Future<List<String>> suggestions(String query, {String source = ''}) async =>
+      suggestionList;
 
   @override
   Future<String> cover(Drama drama, {bool force = false}) async =>
