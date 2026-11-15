@@ -18,6 +18,7 @@ import '../update_prompt.dart';
 import '../widgets/bar_button.dart';
 import '../theme/motion.dart';
 import '../widgets/focus_ring.dart';
+import '../widgets/glass_tab_bar.dart';
 import '../widgets/motion/motion_widgets.dart';
 import '../widgets/source_bar.dart';
 
@@ -262,24 +263,7 @@ class _AppShellState extends State<AppShell> {
         if (!didPop) _back();
       },
       child: switch (AppScope.formFactorOf(context)) {
-        FormFactor.phone => Scaffold(
-          body: pages,
-          bottomNavigationBar: covered
-              ? null
-              : NavigationBar(
-                  selectedIndex: _tab.index,
-                  onDestinationSelected: (index) => _tap(AppTab.values[index]),
-                  destinations: [
-                    for (final tab in AppTab.values)
-                      NavigationDestination(
-                        key: ValueKey('nav-${tab.name}'),
-                        icon: _badged(tab, Icon(tab.icon)),
-                        selectedIcon: _badged(tab, Icon(tab.selectedIcon)),
-                        label: tab.label,
-                      ),
-                  ],
-                ),
-        ),
+        FormFactor.phone => _phone(pages, covered),
         FormFactor.pad || FormFactor.window => _wide(pages),
         FormFactor.television => Scaffold(
           body: SafeArea(
@@ -322,6 +306,48 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
       },
+    );
+  }
+
+  // 手机端底部导航。Liquid Glass 打开时换成浮动的玻璃胶囊条，
+  // 其余情况仍是原来的 Material NavigationBar。
+  Widget _phone(Widget pages, bool covered) {
+    final glass = widget.store.liquidGlass;
+    return Scaffold(
+      // 玻璃条浮在内容之上才有「背景模糊」可言，body 要延伸到条下面。
+      extendBody: glass,
+      body: pages,
+      bottomNavigationBar: covered
+          ? null
+          : glass
+          ? GlassTabBar(
+              selectedIndex: _tab.index,
+              onSelected: (index) => _tap(AppTab.values[index]),
+              destinations: [
+                for (final tab in AppTab.values)
+                  GlassTabDestination(
+                    label: tab.label,
+                    icon: _badged(
+                      tab,
+                      Icon(tab.icon, key: ValueKey('nav-${tab.name}')),
+                    ),
+                    selectedIcon: _badged(tab, Icon(tab.selectedIcon)),
+                  ),
+              ],
+            )
+          : NavigationBar(
+              selectedIndex: _tab.index,
+              onDestinationSelected: (index) => _tap(AppTab.values[index]),
+              destinations: [
+                for (final tab in AppTab.values)
+                  NavigationDestination(
+                    key: ValueKey('nav-${tab.name}'),
+                    icon: _badged(tab, Icon(tab.icon)),
+                    selectedIcon: _badged(tab, Icon(tab.selectedIcon)),
+                    label: tab.label,
+                  ),
+              ],
+            ),
     );
   }
 
