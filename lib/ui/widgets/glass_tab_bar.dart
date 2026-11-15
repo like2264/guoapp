@@ -40,27 +40,29 @@ class GlassTabBar extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(34),
+              // 背景尽量透明，只留高斯模糊和一层极薄的高光，
+              // 让页面内容从条下面透出来（要的是「玻璃」，不是「半透明白条」）。
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: dark
                     ? [
-                        Colors.white.withValues(alpha: 0.15),
-                        Colors.white.withValues(alpha: 0.06),
+                        Colors.white.withValues(alpha: 0.07),
+                        Colors.white.withValues(alpha: 0.02),
                       ]
                     : [
-                        Colors.white.withValues(alpha: 0.92),
-                        Colors.white.withValues(alpha: 0.66),
+                        Colors.white.withValues(alpha: 0.22),
+                        Colors.white.withValues(alpha: 0.08),
                       ],
               ),
               border: Border.all(
                 color: dark
-                    ? Colors.white.withValues(alpha: 0.18)
-                    : Colors.white.withValues(alpha: 0.9),
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : Colors.white.withValues(alpha: 0.45),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: dark ? 0.42 : 0.14),
+                  color: Colors.black.withValues(alpha: dark ? 0.34 : 0.12),
                   blurRadius: 24,
                   offset: const Offset(0, 10),
                 ),
@@ -104,14 +106,14 @@ class GlassTabBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
             color: selected
                 ? (dark
-                      ? Colors.white.withValues(alpha: 0.16)
-                      : Colors.white.withValues(alpha: 0.96))
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.55))
                 : Colors.transparent,
             border: selected
                 ? Border.all(
                     color: dark
                         ? Colors.white.withValues(alpha: 0.22)
-                        : Colors.white,
+                        : Colors.white.withValues(alpha: 0.8),
                   )
                 : null,
             boxShadow: selected
