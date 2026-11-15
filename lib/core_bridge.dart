@@ -404,7 +404,8 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<List<String>> suggestions(String query, {String source = ''}) async {
-    _authorize(source.isEmpty ? 'hongguo' : source);
+    // 空 source 表示「在本地已缓存的全部剧库」里找，不涉及站点权限。
+    if (source.isNotEmpty) _authorize(source);
     final result = await _read('suggestions', {
       'action': 'suggestions',
       'source': source,
