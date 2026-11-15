@@ -241,6 +241,7 @@ class _DuanjuAppState extends State<DuanjuApp> with WidgetsBindingObserver {
               formFactor: formFactor,
               systemColorAvailable: _systemColor != null,
               version: widget.version,
+              liquidGlass: store?.liquidGlass ?? false,
               child: Builder(
                 builder: (context) {
                   final phone =

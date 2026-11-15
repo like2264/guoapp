@@ -21,12 +21,14 @@ class AppScope extends InheritedWidget {
     this.formFactor,
     this.systemColorAvailable = false,
     this.version = '',
+    this.liquidGlass = false,
     required super.child,
   });
   final AppRepository repository;
   final FormFactor? formFactor;
   final bool systemColorAvailable;
   final String version;
+  final bool liquidGlass;
 
   bool get television => formFactor == FormFactor.television;
 
@@ -47,5 +49,6 @@ class AppScope extends InheritedWidget {
       repository != oldWidget.repository ||
       formFactor != oldWidget.formFactor ||
       systemColorAvailable != oldWidget.systemColorAvailable ||
-      version != oldWidget.version;
+      version != oldWidget.version ||
+      liquidGlass != oldWidget.liquidGlass;
 }
