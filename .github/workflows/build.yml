@@ -26,19 +26,27 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+115-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+116-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
           grep -n 'noRedirect' build-src/native/core/module_script.go
-          grep -c 'NativePreciseSearch' build-src/native/core/app_search_precision.go
           grep -c 'NativeMergeSearch' build-src/native/core/app_search_precision.go
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
+          grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
           grep -n 'seek_stalled_14s' build-src/lib/playback_session.dart
-          grep -n '全站源' build-src/lib/ui/search/search_page.dart
-          ls build-src/native/core/bundled
+          grep -n '全站' build-src/lib/ui/search/search_page.dart
+          grep -c 'shellBottomInset' build-src/lib/ui/follow/follow_page.dart
+          grep -n '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart
+          echo "---- 内置模块 ----"
           ls build-src/bundled-modules
+          test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "8"
+          grep -m1 '"version"' build-src/bundled-modules/huangguo-video/manifest.json
+          grep -m1 '"version"' build-src/bundled-modules/huangju/manifest.json
+          grep -n 'categorySearchPage' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'categoryFallbacks' build-src/bundled-modules/huangguoai/main.js
+          ls build-src/native/core/bundled
 
       - uses: actions/setup-python@v5
         with:
@@ -75,10 +83,10 @@ jobs:
           GOTOOLCHAIN: auto
           # 与官方 2.0 的 bundle id 保持一致，方便覆盖安装并保留数据
           PACKAGE_NAME: com.yingshib.xg
-          # 内置我们自己的 5 个站源模块（官方内置的红果仓库需要私有部署密钥，这里不碰）。
-          # 装好后在「模块 → 添加新站源 → 从内置安装」里一次性装上，换包不用重新传 zip。
+          # 内置我们自己的 7 个自建站源 + 修好的剧果（1.0.2，翻页到底不再报错）。
+          # 官方内置的红果仓库需要私有部署密钥，这里不碰。
           BUNDLED_MODULES: >-
-            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai
+            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai,bundled-modules/huangju
         run: python scripts/build_ios.py
 
       - uses: actions/upload-artifact@v4
