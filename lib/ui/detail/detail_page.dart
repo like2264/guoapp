@@ -16,6 +16,7 @@ import '../shell/app_shell.dart';
 import '../widgets/cover_backdrop.dart';
 import '../widgets/cover_image.dart';
 import '../widgets/focus_ring.dart';
+import '../theme/glass.dart';
 import '../widgets/follow_button.dart';
 import '../theme/motion.dart';
 import '../widgets/motion/motion_widgets.dart';
@@ -469,12 +470,35 @@ class _DetailPageState extends State<DetailPage> {
     child: child,
   );
 
+  bool get _liquidGlass => AppScope.of(context).liquidGlass;
+
+  /// Liquid Glass 打开时给内容套一层玻璃；关掉时原样返回，现有外观不变。
+  Widget _glass(
+    Widget child, {
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    double radius = 28,
+    double tint = 1,
+    double blur = 22,
+    bool border = true,
+  }) {
+    if (!_liquidGlass) return child;
+    return GlassPanel(
+      padding: padding,
+      radius: radius,
+      tint: tint,
+      blur: blur,
+      border: border,
+      child: child,
+    );
+  }
+
   Widget _phonePage(DramaDetails details) {
     const m = _phone;
     final top = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final drama = details.drama;
     return Scaffold(
       extendBodyBehindAppBar: true,
+      extendBody: _liquidGlass,
       appBar: _appBar(details, kToolbarHeight),
       body: RefreshIndicator(
         edgeOffset: top,
@@ -487,47 +511,55 @@ class _DetailPageState extends State<DetailPage> {
                 drama,
                 top + 250,
                 Padding(
-                  padding: EdgeInsets.fromLTRB(20, top + 4, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 16,
-                        children: [
-                          _cover(drama, m),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: _enter(
-                                0,
-                                _followingHeadline(details, m, 6),
+                  padding: EdgeInsets.fromLTRB(
+                    _liquidGlass ? 12 : 20,
+                    top + 4,
+                    _liquidGlass ? 12 : 20,
+                    0,
+                  ),
+                  child: _glass(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 16,
+                          children: [
+                            _cover(drama, m),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: _enter(
+                                  0,
+                                  _followingHeadline(details, m, 6),
+                                ),
                               ),
                             ),
+                          ],
+                        ),
+                        if (_stats(drama, m) case final stats?)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14),
+                            child: _enter(1, stats),
                           ),
-                        ],
-                      ),
-                      if (_stats(drama, m) case final stats?)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 14),
-                          child: _enter(1, stats),
-                        ),
-                      if (_tags(drama, m) case final tags?)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: _enter(2, tags),
-                        ),
-                      if (drama.description.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: _enter(3, _description(drama, m)),
-                        ),
-                      if (details.warning.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: _warning(details.warning, m),
-                        ),
-                    ],
+                        if (_tags(drama, m) case final tags?)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: _enter(2, tags),
+                          ),
+                        if (drama.description.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: _enter(3, _description(drama, m)),
+                          ),
+                        if (details.warning.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: _warning(details.warning, m),
+                          ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
                   ),
                 ),
               ),
@@ -566,32 +598,40 @@ class _DetailPageState extends State<DetailPage> {
           ],
         ),
       ),
-      bottomNavigationBar: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-            child: Row(
-              spacing: 12,
-              children: [
-                if (_canDownload)
-                  FocusRing(
-                    radius: m.button / 2,
-                    child: IconButton.filledTonal(
-                      tooltip: '下载选集',
-                      onPressed: _ready ? _download : null,
-                      style: IconButton.styleFrom(
-                        minimumSize: Size.square(m.button),
+      bottomNavigationBar: _glass(
+        Material(
+          color: _liquidGlass
+              ? Colors.transparent
+              : Theme.of(context).colorScheme.surfaceContainerLow,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              child: Row(
+                spacing: 12,
+                children: [
+                  if (_canDownload)
+                    FocusRing(
+                      radius: m.button / 2,
+                      child: IconButton.filledTonal(
+                        tooltip: '下载选集',
+                        onPressed: _ready ? _download : null,
+                        style: IconButton.styleFrom(
+                          minimumSize: Size.square(m.button),
+                        ),
+                        icon: const Icon(Icons.download_rounded),
                       ),
-                      icon: const Icon(Icons.download_rounded),
                     ),
-                  ),
-                Expanded(child: _playButton(details, m)),
-              ],
+                  Expanded(child: _playButton(details, m)),
+                ],
+              ),
             ),
           ),
         ),
+        radius: 0,
+        padding: EdgeInsets.zero,
+        blur: 24,
+        border: false,
       ),
     );
   }
@@ -1616,6 +1656,7 @@ class _EpisodeCell extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
+    final glass = AppScope.of(context).liquidGlass;
     final radius = BorderRadius.circular(metrics.cellRadius);
     return FocusRing(
       radius: metrics.cellRadius,
@@ -1624,7 +1665,11 @@ class _EpisodeCell extends StatelessWidget {
         label: '第 ${episode.number} 集${episode.vip ? '，VIP' : ''}',
         excludeSemantics: true,
         child: Material(
-          color: current ? colors.primaryContainer : colors.surfaceContainer,
+          color: current
+              ? colors.primaryContainer
+              : glass
+              ? colors.surfaceContainer.withValues(alpha: dark ? 0.45 : 0.6)
+              : colors.surfaceContainer,
           borderRadius: radius,
           clipBehavior: Clip.antiAlias,
           child: InkWell(
