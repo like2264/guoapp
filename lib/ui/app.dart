@@ -46,7 +46,7 @@ class _DuanjuAppState extends State<DuanjuApp> with WidgetsBindingObserver {
   int? _profileEpoch;
   var _television = false;
   var _phone = false;
-  (Color, bool, bool)? _themeKey;
+  (Color, bool, bool, bool)? _themeKey;
   late (ThemeData, ThemeData) _themes;
 
   @override
