@@ -141,6 +141,13 @@ class _PortraitPlayerPageState extends State<PortraitPlayerPage>
     _refresh();
   }
 
+  // 单击只负责把播控叫出来，不改变播放状态；暂停交给双击。
+  void _surfaceTap() {
+    final wasIdle = _idle;
+    _wake();
+    if (wasIdle && mounted) setState(() {});
+  }
+
   void _wake() {
     _idleTimer?.cancel();
     _idle = false;
@@ -478,7 +485,9 @@ class _PortraitPlayerPageState extends State<PortraitPlayerPage>
               child: LayoutBuilder(
                 builder: (context, constraints) => GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: _pinching ? null : session.togglePlayback,
+                  // 竖屏：单击唤起播控，双击暂停/继续。
+                  onTap: _pinching ? null : _surfaceTap,
+                  onDoubleTap: _pinching ? null : session.togglePlayback,
                   onLongPressStart: _pinching
                       ? null
                       : (details) => _pressStart(details, constraints.maxWidth),
