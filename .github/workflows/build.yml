@@ -26,19 +26,25 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+116-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+117-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
           grep -n 'noRedirect' build-src/native/core/module_script.go
           grep -c 'NativeMergeSearch' build-src/native/core/app_search_precision.go
+          grep -n 'searchRelevanceNone' build-src/native/core/app_search_precision.go
+          grep -n 'matched == 0' build-src/native/core/app_search_precision.go
+          grep -c '2.0.0+117' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
           grep -n 'seek_stalled_14s' build-src/lib/playback_session.dart
           grep -n '全站' build-src/lib/ui/search/search_page.dart
           grep -c 'shellBottomInset' build-src/lib/ui/follow/follow_page.dart
-          grep -n '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart
+          grep -n 'onSwipe' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n '_swipeTab' build-src/lib/ui/shell/app_shell.dart
+          if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
+          if grep -q 'travel_explore' build-src/lib/ui/explore/explore_page.dart; then echo "残留 全站按钮"; exit 1; fi
           echo "---- 内置模块 ----"
           ls build-src/bundled-modules
           test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "8"
