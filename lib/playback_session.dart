@@ -176,6 +176,11 @@ class PlaybackSession extends ChangeNotifier {
   bool _aspectKnown = false;
   double _resumePosition = 0;
   double _unmutedVolume = 100;
+  // 拖动进度后播放器有可能把「分片还没到」当成片尾：记下这次拖动，
+  // 结束事件落在窗口内就不能当成真的播完（否则会静默跳下一集）。
+  DateTime? _seekedAt;
+  Duration? _seekTarget;
+  double? _recoverPosition;
 
   Player get player => _player;
 
@@ -350,8 +355,35 @@ class PlaybackSession extends ChangeNotifier {
       return;
     }
     final duration = player.state.duration;
+    final position = player.state.position;
+    DiaryService.add(
+      '[Play] 播放器报告结束 位置=${position.inSeconds}s 时长=${duration.inSeconds}s 有下集=$hasNext',
+    );
+    // 拖到白色缓存线之外时，播放器取不到分片会直接报 EOF。以前这里把它当成
+    // 真的播完：位置≈时长就静默跳到下一集，重试用尽再停住（黑屏、拖动也没反应）。
+    // 落到「拖动后 25 秒内、且不是拖到片尾 12 秒以内」这种结束，一律先按
+    // 拖动目标重新解析播放，不跳集。
+    final seekedAt = _seekedAt;
+    final target = _seekTarget;
+    if (seekedAt != null &&
+        DateTime.now().difference(seekedAt) < const Duration(seconds: 25) &&
+        (duration <= Duration.zero ||
+            target == null ||
+            target < duration - const Duration(seconds: 12))) {
+      _seekedAt = null;
+      _seekTarget = null;
+      _recoverPosition =
+          (target ?? Duration(milliseconds: (position.inMilliseconds)))
+              .inMilliseconds /
+          Duration.millisecondsPerSecond;
+      DiaryService.add(
+        '[Play] 拖动后提前结束，改从 ${_recoverPosition!.toStringAsFixed(1)}s 重新解析，不跳集',
+      );
+      _queueRecovery('seek_eof');
+      return;
+    }
     if (duration <= Duration.zero ||
-        player.state.position < duration - const Duration(seconds: 2)) {
+        position < duration - const Duration(seconds: 2)) {
       _queueRecovery('early_completion');
     } else if (_foreground && hasNext) {
       unawaited(play(_index + 1));
@@ -396,12 +428,13 @@ class PlaybackSession extends ChangeNotifier {
     danmaku.setPlan(null);
     _errorTimer?.cancel();
     _pendingError = false;
-    final position = currentPosition;
+    final position = _recoverPosition ?? currentPosition;
+    _recoverPosition = null;
     final action = current.local
         ? PlaybackRecoveryAction.stop
         : _recovery.next(current);
     DiaryService.add(
-      '[Play] 自动恢复 原因=$reason 处理=${action.name} 线路=${current.routeIndex + 1}/${current.routeCount}',
+      '[Play] 自动恢复 原因=$reason 处理=${action.name} 位置=${position.toStringAsFixed(1)}s 线路=${current.routeIndex + 1}/${current.routeCount}',
     );
     if (action != PlaybackRecoveryAction.stop) {
       await play(_index, position: position, recovery: action);
@@ -490,6 +523,12 @@ class PlaybackSession extends ChangeNotifier {
     endBoost();
     _staleAudio = false;
     if (index != _index) _online = false;
+    if (index != _index) {
+      // 换集后上一次拖动的记录不能留着，否则会挡住新一集的正常结束。
+      _seekedAt = null;
+      _seekTarget = null;
+      _recoverPosition = null;
+    }
     if (recovery == null &&
         position == 0 &&
         _standbyOpen &&
@@ -796,6 +835,8 @@ class PlaybackSession extends ChangeNotifier {
     final ticket = ++_seekSequence;
     final generation = _generation;
     danmaku.beginSeek();
+    _seekedAt = DateTime.now();
+    _seekTarget = target;
     var succeeded = false;
     try {
       await player.seek(target);
