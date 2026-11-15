@@ -39,6 +39,13 @@ type nativeStreamSession struct {
 	cancel       context.CancelFunc
 	lastUsed     time.Time
 	diagnosticID string
+	// refresh 用于播放途中凭证失效时重新领取一次，例如柚子短剧的访客会话与
+	// 年龄确认都有有效期：拖到未缓冲位置才会去取新分片，这时凭证若已过期，
+	// 站点回 403，播放器就会卡住直到健康检查把它判死。
+	refresh     func(context.Context) (*providerMediaCredentials, error)
+	refreshMu   sync.Mutex
+	refreshing  bool
+	refreshedAt time.Time
 }
 
 type nativeStreamServer struct {
@@ -90,7 +97,7 @@ func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, strin
 	}
 	token := hex.EncodeToString(tokenBytes)
 	ctx, cancel := context.WithCancel(providerMediaContext(context.Background(), media.credentials))
-	session := &nativeStreamSession{assets: map[string]nativeStreamAsset{}, referer: media.Referer, key: media.HLSKey, ctx: ctx, cancel: cancel, lastUsed: time.Now(), credentials: media.credentials, diagnosticID: nativeStreamID(token)}
+	session := &nativeStreamSession{assets: map[string]nativeStreamAsset{}, referer: media.Referer, key: media.HLSKey, ctx: ctx, cancel: cancel, lastUsed: time.Now(), credentials: media.credentials, diagnosticID: nativeStreamID(token), refresh: media.refresh}
 	stream.mu.Lock()
 	for id, old := range stream.sessions {
 		if time.Since(old.lastUsed) > 10*time.Minute {
@@ -124,6 +131,40 @@ func (stream *nativeStreamServer) nativeOpen(media providerMedia) (string, strin
 		entry.kind = "entry_playlist"
 	}
 	return stream.nativeAsset(token, session, entry), token
+}
+
+// credentialSnapshot 取当前生效的播放凭证。
+func (session *nativeStreamSession) credentialSnapshot() *providerMediaCredentials {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.credentials
+}
+
+// refreshCredential 在播放途中凭证失效时重新领取一次。
+// 5 秒内不重复尝试，避免一批分片同时 403 时把站点打爆。
+func (session *nativeStreamSession) refreshCredential(ctx context.Context) *providerMediaCredentials {
+	if session.refresh == nil {
+		return nil
+	}
+	session.refreshMu.Lock()
+	if session.refreshing || time.Since(session.refreshedAt) < 5*time.Second {
+		session.refreshMu.Unlock()
+		return nil
+	}
+	session.refreshing = true
+	session.refreshMu.Unlock()
+	fresh, err := session.refresh(ctx)
+	session.refreshMu.Lock()
+	session.refreshing = false
+	session.refreshedAt = time.Now()
+	session.refreshMu.Unlock()
+	if err != nil || fresh == nil {
+		return nil
+	}
+	session.mu.Lock()
+	session.credentials = fresh
+	session.mu.Unlock()
+	return fresh
 }
 
 func (stream *nativeStreamServer) nativeCancel(session *nativeStreamSession, reason string) {
@@ -276,7 +317,7 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 		http.NotFound(writer, request)
 		return
 	}
-	ctx, cancel := context.WithCancel(providerMediaContext(request.Context(), session.credentials))
+	ctx, cancel := context.WithCancel(providerMediaContext(request.Context(), session.credentialSnapshot()))
 	defer cancel()
 	ctx = context.WithValue(ctx, nativeStreamDiagnosticKey{}, info)
 	stop := context.AfterFunc(session.ctx, cancel)
@@ -325,6 +366,36 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 	if err != nil {
 		http.Error(writer, "读取媒体失败，请重试", http.StatusBadGateway)
 		return
+	}
+	// 播放凭证过期（或站点换了签名）时，拖动进度到未缓冲位置才会暴露：
+	// 这时才去取新分片，站点回 403，播放器会一直等，最后被健康检查判死。
+	// 这里续领一次凭证并原样重试，成功就当没发生过。
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
+		response.Body.Close()
+		if fresh := session.refreshCredential(ctx); fresh != nil {
+			retry, retryErr := http.NewRequestWithContext(providerMediaContext(ctx, fresh), request.Method, asset.address, nil)
+			if retryErr == nil {
+				retry.Header.Set("User-Agent", userAgent)
+				retry.Header.Set("Referer", session.referer)
+				for _, name := range []string{"Range", "If-Range"} {
+					if value := request.Header.Get(name); value != "" {
+						retry.Header.Set(name, value)
+					}
+				}
+				if retried, retryErr := stream.nativeRequest(retry); retryErr == nil {
+					response, upstream = retried, retry
+					stream.nativeLog(info, "credential_refreshed", asset.address, "", response.StatusCode, "")
+				}
+			}
+		}
+		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+			body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+			response.Body.Close()
+			err := stream.downloader.catalogResponseError(upstream, response, body)
+			http.Error(writer, err.Error(), response.StatusCode)
+			return
+		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {

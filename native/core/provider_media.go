@@ -19,6 +19,9 @@ type providerMedia struct {
 	CENCKey     []byte
 	Quality     int
 	Variants    []providerMedia
+	// refresh 让本机流服务在播放途中凭证失效时重新领取一次。
+	// 只有凭证本身有时效的站源需要实现（目前是柚子短剧）。
+	refresh func(context.Context) (*providerMediaCredentials, error)
 }
 
 func (d *Downloader) providerBaseURL(source string) string {

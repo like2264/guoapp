@@ -434,7 +434,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 	case "rankings":
 		return engine.nativeRanking(ctx, input)
 	case "suggestions":
-		items, err := engine.suggestions(ctx, input.Query)
+		items, err := engine.suggestions(ctx, input.Source, input.Query)
 		return map[string]any{"items": items}, err
 	case "downloadDirectory":
 		engine.downloads.mu.Lock()

@@ -870,5 +870,33 @@ func (d *Downloader) resolveYouzidjMedia(ctx context.Context, task Task) (provid
 			userAgent: youzidjUserAgent, expires: expires,
 		},
 	}
+	// 访客会话与年龄确认都会过期。播放途中拖到未缓冲位置才会去取新分片，
+	// 这时凭证若已失效，站点回 403，播放器就一直卡着。这里补一个续领入口，
+	// 由本机流服务在遇到 403 时调用一次并原样重试。
+	media.refresh = func(refreshCtx context.Context) (*providerMediaCredentials, error) {
+		guest, err := d.youzidjAccount(refreshCtx, site, pageURL)
+		if err != nil {
+			return nil, err
+		}
+		freshURL, freshCookie, freshExpires, status, err := d.youzidjPlaybackOnce(refreshCtx, site, videoID, pageURL, guest)
+		if err != nil && (status == http.StatusUnauthorized || status == http.StatusForbidden) {
+			d.youzidjForgetAccount()
+			d.youzidjForgetAge()
+			if renewed, bootErr := d.youzidjAccount(refreshCtx, site, pageURL); bootErr == nil {
+				freshURL, freshCookie, freshExpires, _, err = d.youzidjPlaybackOnce(refreshCtx, site, videoID, pageURL, renewed)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		fresh, parseErr := url.Parse(freshURL)
+		if parseErr != nil || !isProviderHTTPMediaURL(freshURL) {
+			return nil, errors.New("柚子短剧返回的播放地址无效")
+		}
+		return &providerMediaCredentials{
+			origin: providerMediaOrigin(fresh), cookie: freshCookie, referer: pageURL,
+			userAgent: youzidjUserAgent, expires: freshExpires,
+		}, nil
+	}
 	return d.prepareWebProviderMedia(ctx, media, youzidjChannelName)
 }
