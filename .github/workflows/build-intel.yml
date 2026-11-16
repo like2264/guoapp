@@ -1,0 +1,169 @@
+name: Build 2.0 patched (iOS · Intel 池)
+
+# 一次性工作流：把仓库根目录的补丁源码包解开，只编 iOS 未签名包。
+# 不提交任何内容、不打 tag、不碰 .github/workflows，因此不需要 workflow 权限。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOPROXY: https://proxy.golang.org,direct
+  PYTHONUTF8: '1'
+
+jobs:
+  ios:
+    # macos-latest 当前是 arm64（M1），机位经常排队 15 分钟超时；
+    # macos-15-intel 是 Intel 池，几乎不排队。
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 解开补丁源码
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build-src
+          mkdir -p build-src
+          tar -xzf guoapp-2.0.0+126-full-patch.tar.gz -C build-src
+          echo "---- 版本与补丁自检 ----"
+          grep -n '^version:' build-src/pubspec.yaml
+          grep -n 'NoRedirect' build-src/native/core/provider_host.go
+          grep -n 'noRedirect' build-src/native/core/module_script.go
+          grep -c 'NativeMergeSearch' build-src/native/core/app_search_precision.go
+          grep -n 'searchRelevanceNone' build-src/native/core/app_search_precision.go
+          grep -n 'matched == 0' build-src/native/core/app_search_precision.go
+          grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
+          grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
+          grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
+          grep -c '2.0.0+126' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -n 'searchAll' build-src/native/core/app_runtime.go
+          grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
+          grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
+          grep -n 'seek_stalled_14s' build-src/lib/playback_session.dart
+          grep -n '全站' build-src/lib/ui/search/search_page.dart
+          grep -c 'shellBottomInset' build-src/lib/ui/follow/follow_page.dart
+          grep -n 'onSwipe' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n '_swipeTab' build-src/lib/ui/shell/app_shell.dart
+          grep -n 'Listener' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'sigmaX: 0.8' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
+          grep -n '_parkFeeds' build-src/lib/explore_feed.dart
+          grep -n '_suggestCache' build-src/lib/core_bridge.dart
+          grep -n '_suggestQuery' build-src/lib/ui/search/search_page.dart
+          grep -n 'bool _composing()' build-src/lib/ui/search/search_page.dart
+          grep -n 'final card = ClipRRect' build-src/lib/ui/explore/explore_hero.dart
+          grep -n 'class GlassCard' build-src/lib/ui/theme/glass.dart
+          grep -n 'glassEnabled' build-src/lib/ui/widgets/page_header.dart
+          grep -n 'class SourceFacts' build-src/lib/source_stats.dart
+          grep -n 'CatalogTotaler' build-src/native/core/provider_registry.go
+          grep -n 'total,omitempty' build-src/native/core/app_runtime.go
+          grep -n 'jsProvider) CatalogTotal' build-src/native/core/module_script.go
+          grep -n 'state.Total' build-src/native/core/app_catalog_cache.go
+          grep -n 'total: catalogTotal' build-src/bundled-modules/xduanju/main.js
+          grep -n 'total: knownTotal' build-src/bundled-modules/huangju/main.js
+          grep -n 'function catalogTotal' build-src/bundled-modules/huangguo-video/main.js
+          grep -n 'result.total = total' build-src/bundled-modules/huangguo-video/main.js
+          grep -n 'function dataTotal' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'result.total = total' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'factsSeenLimit' build-src/lib/source_stats.dart
+          grep -n 'List<String> readSeen' build-src/lib/source_stats.dart
+          grep -n '_noteAll' build-src/lib/explore_feed.dart
+          grep -n '_seenDirty' build-src/lib/explore_feed.dart
+          grep -n '目录总量' build-src/DEVELOPMENT.md
+          grep -n 'final int site' build-src/lib/source_stats.dart
+          grep -n '_refreshFacts' build-src/lib/explore_feed.dart
+          grep -n 'siteTotal' build-src/lib/explore_feed.dart
+          grep -n 'final int total' build-src/lib/models.dart
+          grep -n 'get sourceStats' build-src/lib/local_store.dart
+          grep -n '_track(' build-src/lib/explore_feed.dart
+          grep -n 'explore.facts.label' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'GlassCard(' build-src/lib/ui/mine/mine_page.dart
+          grep -c 'BackdropFilter' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
+          grep -c 'onHorizontalDragUpdate' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
+          if grep -q 'travel_explore' build-src/lib/ui/explore/explore_page.dart; then echo "残留 全站按钮"; exit 1; fi
+          if grep -q '_revealScrollBar' build-src/lib/ui/explore/explore_page.dart; then echo "残留 _revealScrollBar 空调用"; exit 1; fi
+          echo "---- 内置模块 ----"
+          ls build-src/bundled-modules
+          test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "11"
+          grep -m1 '"version"' build-src/bundled-modules/huangguo-video/manifest.json
+          grep -m1 '"version"' build-src/bundled-modules/huangju/manifest.json
+          grep -n 'categorySearchPage' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'categoryFallbacks' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'result.total = total.value' build-src/bundled-modules/yeguo/main.js
+          grep -n 'result.total = total' build-src/bundled-modules/heitao/main.js
+          grep -n 'payload.total = total' build-src/bundled-modules/jinguoduanju/main.js
+          grep -m1 '"version"' build-src/bundled-modules/yeguo/manifest.json
+          grep -m1 '"version"' build-src/bundled-modules/heitao/manifest.json
+          grep -m1 '"version"' build-src/bundled-modules/jinguoduanju/manifest.json
+          ls build-src/native/core/bundled
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: build-src/native/go.mod
+          cache-dependency-path: build-src/native/go.sum
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+
+      - name: 检查 Xcode 与 CocoaPods
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Intel 镜像里预装的 Xcode 版本列表可能和 arm64 镜像不完全一致。
+          # 之前 arm64 上是用默认的 Xcode 16.4 编过的，这里显式选同一版本，
+          # 避免换机器后因为 Xcode 版本不同编出不一样的东西；没有就退回默认。
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+          fi
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          xcode-select -p
+          xcodebuild -version
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+          pod --version
+          go version
+          flutter --version
+          flutter precache --ios
+
+      - name: 构建 iOS 未签名包
+        working-directory: build-src
+        env:
+          GOTOOLCHAIN: auto
+          # 新版 macOS runner / Xcode 的签名 pre-flight 检查更严格，即使
+          # --no-codesign 也会因为某个 target 没有 development team 而失败
+          # （"Building a distributable app requires a selected Development Team"）。
+          # Flutter 会把 FLUTTER_XCODE_* 原样作为 build setting 传给 xcodebuild，
+          # 这里强制全局关闭签名，向下传递到所有 target（含 Pod bundle、RunnerTests）。
+          # 注意：不要设置 FLUTTER_XCODE_PRODUCT_BUNDLE_IDENTIFIER，避免覆盖写_app_config 写入的 bundle id。
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: 'NO'
+          FLUTTER_XCODE_CODE_SIGNING_REQUIRED: 'NO'
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: ''
+          FLUTTER_XCODE_DEVELOPMENT_TEAM: ''
+          # 与官方 2.0 的 bundle id 保持一致，方便覆盖安装并保留数据
+          PACKAGE_NAME: com.yingshib.xg
+          # 内置我们自己的 10 个自建站源 + 修好的剧果（1.0.2，翻页到底不再报错）。
+          # 官方内置的红果仓库需要私有部署密钥，这里不碰。
+          BUNDLED_MODULES: >-
+            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai,bundled-modules/huangju,bundled-modules/yeguo,bundled-modules/heitao,bundled-modules/jinguoduanju
+        run: python scripts/build_ios.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-patched
+          path: build-src/dist/ios/*
+          if-no-files-found: error
+          retention-days: 14
