@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+118-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+119-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -34,7 +34,7 @@ jobs:
           grep -c 'NativeMergeSearch' build-src/native/core/app_search_precision.go
           grep -n 'searchRelevanceNone' build-src/native/core/app_search_precision.go
           grep -n 'matched == 0' build-src/native/core/app_search_precision.go
-          grep -c '2.0.0+118' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+119' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -45,7 +45,9 @@ jobs:
           grep -n '_swipeTab' build-src/lib/ui/shell/app_shell.dart
           grep -n 'Listener' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'Scrollbar' build-src/lib/ui/explore/explore_page.dart
-          if grep -q 'BackdropFilter' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo "残留底栏模糊"; exit 1; fi
+          grep -c 'BackdropFilter' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
+          grep -c 'onHorizontalDragUpdate' build-src/lib/ui/widgets/glass_tab_bar.dart
           if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
           if grep -q 'travel_explore' build-src/lib/ui/explore/explore_page.dart; then echo "残留 全站按钮"; exit 1; fi
           echo "---- 内置模块 ----"
