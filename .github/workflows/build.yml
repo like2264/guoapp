@@ -50,6 +50,9 @@ jobs:
           grep -c 'onHorizontalDragUpdate' build-src/lib/ui/widgets/glass_tab_bar.dart
           if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
           if grep -q 'travel_explore' build-src/lib/ui/explore/explore_page.dart; then echo "残留 全站按钮"; exit 1; fi
+          echo "---- 修复 +119 遗留：移除未定义的 _revealScrollBar 调用 ----"
+          python3 -c "from pathlib import Path; p=Path('build-src/lib/ui/explore/explore_page.dart'); lines=p.read_text().splitlines(); assert any('_revealScrollBar' in l for l in lines), 'marker not found'; out=[l for l in lines if '_revealScrollBar' not in l]; assert not any('_revealScrollBar' in l for l in out), 'patch failed'; p.write_text(chr(10).join(out)+chr(10)); print('patched: removed stale _revealScrollBar call')"
+          if grep -q '_revealScrollBar' build-src/lib/ui/explore/explore_page.dart; then echo "补丁后仍残留 _revealScrollBar"; exit 1; fi
           echo "---- 内置模块 ----"
           ls build-src/bundled-modules
           test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "8"
