@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+126-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+127-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,16 +39,16 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+126' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+127' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
           grep -n 'seek_stalled_14s' build-src/lib/playback_session.dart
           grep -n '全站' build-src/lib/ui/search/search_page.dart
           grep -c 'shellBottomInset' build-src/lib/ui/follow/follow_page.dart
-          grep -n 'onSwipe' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n '_swipeTab' build-src/lib/ui/shell/app_shell.dart
-          grep -n 'Listener' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'onHorizontalDragStart' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n '_dragEnd' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'HapticFeedback.selectionClick' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'sigmaX: 0.8' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
           grep -n '_parkFeeds' build-src/lib/explore_feed.dart
@@ -74,6 +74,12 @@ jobs:
           grep -n '_noteAll' build-src/lib/explore_feed.dart
           grep -n '_seenDirty' build-src/lib/explore_feed.dart
           grep -n '目录总量' build-src/DEVELOPMENT.md
+          grep -n 'String get headline' build-src/lib/source_stats.dart
+          grep -n 'subtitleLines' build-src/lib/ui/widgets/source_bar.dart
+          grep -n '_lastSiteTotalAt' build-src/lib/explore_feed.dart
+          grep -n '_drain' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'HapticFeedback.selectionClick' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'storeCount' build-src/lib/ui/settings/modules_view.dart
           grep -n 'final int site' build-src/lib/source_stats.dart
           grep -n '_refreshFacts' build-src/lib/explore_feed.dart
           grep -n 'siteTotal' build-src/lib/explore_feed.dart
