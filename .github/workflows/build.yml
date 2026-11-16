@@ -92,6 +92,16 @@ jobs:
         working-directory: build-src
         env:
           GOTOOLCHAIN: auto
+          # 新版 macOS runner / Xcode 的签名 pre-flight 检查更严格，即使
+          # --no-codesign 也会因为某个 target 没有 development team 而失败
+          # （"Building a distributable app requires a selected Development Team"）。
+          # Flutter 会把 FLUTTER_XCODE_* 原样作为 build setting 传给 xcodebuild，
+          # 这里强制全局关闭签名，向下传递到所有 target（含 Pod bundle、RunnerTests）。
+          # 注意：不要设置 FLUTTER_XCODE_PRODUCT_BUNDLE_IDENTIFIER，避免覆盖写_app_config 写入的 bundle id。
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: 'NO'
+          FLUTTER_XCODE_CODE_SIGNING_REQUIRED: 'NO'
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: ''
+          FLUTTER_XCODE_DEVELOPMENT_TEAM: ''
           # 与官方 2.0 的 bundle id 保持一致，方便覆盖安装并保留数据
           PACKAGE_NAME: com.yingshib.xg
           # 内置我们自己的 7 个自建站源 + 修好的剧果（1.0.2，翻页到底不再报错）。
