@@ -44,7 +44,7 @@ jobs:
           grep -n 'onSwipe' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n '_swipeTab' build-src/lib/ui/shell/app_shell.dart
           grep -n 'Listener' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n 'Scrollbar' build-src/lib/ui/explore/explore_page.dart
+          grep -n '_scrollBarThumb' build-src/lib/ui/explore/explore_page.dart
           grep -c 'BackdropFilter' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
           grep -c 'onHorizontalDragUpdate' build-src/lib/ui/widgets/glass_tab_bar.dart
