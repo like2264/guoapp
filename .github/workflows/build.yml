@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+120-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+121-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -37,7 +37,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+120' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+121' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -47,15 +47,17 @@ jobs:
           grep -n 'onSwipe' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n '_swipeTab' build-src/lib/ui/shell/app_shell.dart
           grep -n 'Listener' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n '_scrollBarThumb' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'sigmaX: 2.5' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
+          grep -n '_parkFeeds' build-src/lib/explore_feed.dart
+          grep -n '_suggestCache' build-src/lib/core_bridge.dart
+          grep -n '_suggestQuery' build-src/lib/ui/search/search_page.dart
           grep -c 'BackdropFilter' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
           grep -c 'onHorizontalDragUpdate' build-src/lib/ui/widgets/glass_tab_bar.dart
           if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
           if grep -q 'travel_explore' build-src/lib/ui/explore/explore_page.dart; then echo "残留 全站按钮"; exit 1; fi
-          echo "---- 修复 +119 遗留：移除未定义的 _revealScrollBar 调用 ----"
-          python3 -c "from pathlib import Path; p=Path('build-src/lib/ui/explore/explore_page.dart'); lines=p.read_text().splitlines(); assert any('_revealScrollBar' in l for l in lines), 'marker not found'; out=[l for l in lines if '_revealScrollBar' not in l]; assert not any('_revealScrollBar' in l for l in out), 'patch failed'; p.write_text(chr(10).join(out)+chr(10)); print('patched: removed stale _revealScrollBar call')"
-          if grep -q '_revealScrollBar' build-src/lib/ui/explore/explore_page.dart; then echo "补丁后仍残留 _revealScrollBar"; exit 1; fi
+          if grep -q '_revealScrollBar' build-src/lib/ui/explore/explore_page.dart; then echo "残留 _revealScrollBar 空调用"; exit 1; fi
           echo "---- 内置模块 ----"
           ls build-src/bundled-modules
           test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "8"
