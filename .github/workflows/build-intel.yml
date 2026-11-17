@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+130-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+131-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+130' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+131' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -129,7 +129,7 @@ jobs:
           grep -n 'function catalogTotal' build-src/bundled-modules/huangtao/main.js
           grep -n '站内共有' build-src/bundled-modules/huangtao/main.js
           grep -n 'RE_DETAIL_COUNT' build-src/bundled-modules/yesheai/main.js
-          grep -n 'PACKAGE_NAME: com.guoapp.phoenix2' .github/workflows/build.yml
+          grep -rn 'PACKAGE_NAME: com.guoapp.phoenix2' .github/workflows
           if grep -q '目录请求间隔' build-src/lib/ui/settings/settings_sections.dart; then echo "残留 目录请求间隔"; exit 1; fi
           if grep -q 'SettingsGroup.sources' build-src/lib/ui/settings/settings_sections.dart; then echo "残留 站源分组"; exit 1; fi
           if grep -q 'canDownload ? .查看存储用量' build-src/lib/ui/settings/settings_sections.dart; then echo "残留 目录与空间"; exit 1; fi
