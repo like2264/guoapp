@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+128-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+130-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+128' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+130' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -49,7 +49,9 @@ jobs:
           grep -n 'onHorizontalDragStart' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n '_dragEnd' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'HapticFeedback.selectionClick' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n 'sigmaX: 2.2' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'sigmaX: 0.8' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -q '_trail' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏残影没删干净'; exit 1; fi
+          if grep -q '_Dividers' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏分隔线没删干净'; exit 1; fi
           grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
           grep -n '_parkFeeds' build-src/lib/explore_feed.dart
           grep -n '_suggestCache' build-src/lib/core_bridge.dart
@@ -89,6 +91,20 @@ jobs:
           grep -n 'explore.facts.label' build-src/lib/ui/explore/explore_page.dart
           grep -n 'GlassCard(' build-src/lib/ui/mine/mine_page.dart
           grep -c 'BackdropFilter' build-src/lib/ui/widgets/glass_tab_bar.dart
+          echo '---- 弹窗底色与精确匹配高亮 ----'
+          grep -n 'dialogFill' build-src/lib/ui/theme/app_theme.dart
+          grep -n 'backgroundColor: dialogFill' build-src/lib/ui/theme/app_theme.dart
+          grep -n '_ExactBadge' build-src/lib/ui/widgets/drama_tile.dart
+          grep -n 'drama.titleMatched' build-src/lib/ui/widgets/drama_tile.dart
+          grep -n 'highlight: _submitted' build-src/lib/ui/search/search_page.dart
+          grep -n 'final String? highlight;' build-src/lib/ui/widgets/drama_grid.dart
+          grep -n 'class OrdinalBadge' build-src/lib/ui/widgets/cover_image.dart
+          grep -n 'final int? ordinal;' build-src/lib/ui/widgets/cover_image.dart
+          grep -n 'ordinal: ordinal' build-src/lib/ui/widgets/drama_tile.dart
+          grep -n 'final int? numberFrom;' build-src/lib/ui/widgets/drama_grid.dart
+          grep -n 'numberFrom: numbering ? 1 : null' build-src/lib/ui/explore/explore_page.dart
+          grep -n '已经到底了 · 共' build-src/lib/ui/widgets/drama_grid.dart
+          if grep -q 'numberFrom' build-src/lib/ui/search/search_page.dart; then echo '搜索页不该有序号'; exit 1; fi
           grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
           grep -c 'onHorizontalDragUpdate' build-src/lib/ui/widgets/glass_tab_bar.dart
           if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
@@ -161,9 +177,36 @@ jobs:
           grep -q 'htmlFirstClass(card.parent, "des")' build-src/bundled-modules/heitao/main.js
           grep -q 'introUnknown' build-src/bundled-modules/huangtao/main.js
           grep -q 'host.cacheSet("intro:"' build-src/bundled-modules/crdj/main.js
-          grep -q '"version": "1.0.1"' build-src/bundled-modules/xduanju/manifest.json
-          grep -q '"version": "1.1.1"' build-src/bundled-modules/youzidj/manifest.json
-          grep -q '"version": "1.0.3"' build-src/bundled-modules/heitao/manifest.json
+          echo '---- 每页都补简介（不再只补第一页）----'
+          for module in crdj heitao huangguo-video huangju huangtao jinguoduanju xduanju youzidj; do
+            grep -q 'INTRO_LATER_BUDGET' "build-src/bundled-modules/$module/main.js" || { echo "没有后续页补简介: $module"; exit 1; }
+            grep -q 'INTRO_LATER_BUDGET' "build-src/native/core/bundled/$module/main.js" || { echo "embed 副本没有后续页补简介: $module"; exit 1; }
+            if grep -q 'if (page !== 1) return;' "build-src/bundled-modules/$module/main.js"; then echo "还在只补第一页: $module"; exit 1; fi
+          done
+          grep -q '"version": "1.0.2"' build-src/bundled-modules/xduanju/manifest.json
+          grep -q '"version": "1.1.3"' build-src/bundled-modules/youzidj/manifest.json
+          grep -q '"version": "1.0.2"' build-src/bundled-modules/crdj/manifest.json
+          grep -q '"version": "1.0.2"' build-src/bundled-modules/yesheai/manifest.json
+          grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
+          grep -q '"version": "1.0.4"' build-src/bundled-modules/huangju/manifest.json
+          grep -q '"version": "1.0.4"' build-src/bundled-modules/huangtao/manifest.json
+          grep -q '"version": "1.0.6"' build-src/bundled-modules/jinguoduanju/manifest.json
+          grep -q '"version": "1.0.7"' build-src/bundled-modules/huangguo-video/manifest.json
+          echo '---- 夜社全部 = 各栏目拼接 ----'
+          grep -q 'var SECTIONS =' build-src/bundled-modules/yesheai/main.js
+          grep -q 'function sectionPages' build-src/bundled-modules/yesheai/main.js
+          grep -q 'function loadSection' build-src/bundled-modules/yesheai/main.js
+          grep -q 'totalPages \* PAGE_SIZE' build-src/bundled-modules/yesheai/main.js
+          grep -q 'var SECTIONS =' build-src/native/core/bundled/yesheai/main.js
+          echo '---- 黄桃/柚子 全部 = 各栏目拼接 ----'
+          grep -q 'var SECTIONS =' build-src/bundled-modules/huangtao/main.js
+          grep -q 'SECTION_PAGES_DEFAULT' build-src/bundled-modules/huangtao/main.js
+          grep -q 'function loadSection' build-src/bundled-modules/huangtao/main.js
+          grep -q 'var SECTIONS =' build-src/bundled-modules/youzidj/main.js
+          grep -q 'SECTION_PAGES_DEFAULT' build-src/bundled-modules/youzidj/main.js
+          grep -q 'function lastPageOf' build-src/bundled-modules/youzidj/main.js
+          grep -q 'function loadSection' build-src/native/core/bundled/huangtao/main.js
+          grep -q 'function lastPageOf' build-src/native/core/bundled/youzidj/main.js
           ls build-src/native/core/bundled
           echo "---- 本地搜索索引 ----"
           test -f build-src/native/core/app_search_index.go
@@ -183,6 +226,15 @@ jobs:
           grep -n 'mergeSearchWithIndex(kept, localPage, query)' build-src/native/core/app_runtime.go
           grep -n 'engine.indexDramas(source, result.Items)' build-src/native/core/app_runtime.go
           grep -n 'engine.kickSearchIndex(input.Source)' build-src/native/core/app_runtime.go
+          echo '---- 搜索简介队列 ----'
+          grep -n ') queueIntros(' build-src/native/core/app_search_sync.go
+          grep -n ') takeQueuedIntros(' build-src/native/core/app_search_sync.go
+          grep -n ') indexSearchPages(' build-src/native/core/app_search_sync.go
+          grep -n ') queueSearch(' build-src/native/core/app_search_sync.go
+          grep -n 'engine.queueIntros(input.Source, pending)' build-src/native/core/app_runtime.go
+          grep -n 'ID] = true' build-src/native/core/app_runtime.go
+          grep -n 'engine.queueSearch(input.Source, query)' build-src/native/core/app_runtime.go
+          grep -n 'searchSyncIntroQueueGap' build-src/native/core/app_search_sync.go
           grep -n 'indexStore' build-src/native/core/app_runtime.go
           test "$(grep -c 'func Test' build-src/native/core/app_search_index_test.go | tr -d ' ')" -ge 5
 
