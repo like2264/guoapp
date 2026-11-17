@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+127-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+128-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,17 +39,17 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+127' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+128' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
-          grep -n 'seek_stalled_14s' build-src/lib/playback_session.dart
+          grep -n 'seek_stalled_5s' build-src/lib/playback_session.dart
           grep -n '全站' build-src/lib/ui/search/search_page.dart
           grep -c 'shellBottomInset' build-src/lib/ui/follow/follow_page.dart
           grep -n 'onHorizontalDragStart' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n '_dragEnd' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'HapticFeedback.selectionClick' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n 'sigmaX: 0.8' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'sigmaX: 2.2' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
           grep -n '_parkFeeds' build-src/lib/explore_feed.dart
           grep -n '_suggestCache' build-src/lib/core_bridge.dart
@@ -94,6 +94,50 @@ jobs:
           if grep -q '_KeepAlivePage' build-src/lib/ui/shell/app_shell.dart; then echo "残留 _KeepAlivePage"; exit 1; fi
           if grep -q 'travel_explore' build-src/lib/ui/explore/explore_page.dart; then echo "残留 全站按钮"; exit 1; fi
           if grep -q '_revealScrollBar' build-src/lib/ui/explore/explore_page.dart; then echo "残留 _revealScrollBar 空调用"; exit 1; fi
+          # ---- 2.0.0+128 ----
+          grep -n 'case "warm"' build-src/native/core/app_runtime.go
+          grep -n 'jsProvider) Warm' build-src/native/core/module_script.go
+          grep -n 'warmSource' build-src/native/core/app_warm.go
+          grep -n 'baseBuildNumber' build-src/lib/app_device.dart
+          grep -n 'StorageCleanup' build-src/lib/ui/settings/storage_view.dart
+          grep -n 'SettingsGroup.storage' build-src/lib/ui/settings/settings_sections.dart
+          grep -n 'radius - 0.5' build-src/lib/ui/theme/glass.dart
+          grep -n '共找到' build-src/lib/ui/search/search_page.dart
+          grep -n '_pulseFacts' build-src/lib/explore_feed.dart
+          grep -n 'whole ? result.total : 0' build-src/lib/explore_feed.dart
+          grep -n '_stopDrain' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'lightImpact' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'duration - position > 45000' build-src/lib/playback_session.dart
+          if grep -q '_idleRelease' build-src/lib/playback_session.dart; then echo "残留 预开宽限计时器"; exit 1; fi
+          if grep -q 'duration - position > 30000' build-src/lib/playback_session.dart; then echo "残留 临近片尾才预开"; exit 1; fi
+          grep -n 'function catalogTotal' build-src/bundled-modules/huangtao/main.js
+          grep -n '站内共有' build-src/bundled-modules/huangtao/main.js
+          grep -n 'RE_DETAIL_COUNT' build-src/bundled-modules/yesheai/main.js
+          grep -n 'PACKAGE_NAME: com.guoapp.phoenix2' .github/workflows/build.yml
+          if grep -q '目录请求间隔' build-src/lib/ui/settings/settings_sections.dart; then echo "残留 目录请求间隔"; exit 1; fi
+          if grep -q 'SettingsGroup.sources' build-src/lib/ui/settings/settings_sections.dart; then echo "残留 站源分组"; exit 1; fi
+          if grep -q 'canDownload ? .查看存储用量' build-src/lib/ui/settings/settings_sections.dart; then echo "残留 目录与空间"; exit 1; fi
+          # ---- 2.0.0+128 搜索相关度七档 ----
+          grep -n 'func (r searchRelevance) weight()' build-src/native/core/app_search_precision.go
+          grep -n 'searchRankTitleStart' build-src/native/core/app_search_precision.go
+          grep -n 'searchBonusWordCap' build-src/native/core/app_search_precision.go
+          grep -n 'nativeTierBonus' build-src/native/core/app_search_precision.go
+          grep -n 'func nativeDramaScore' build-src/native/core/app_search_precision.go
+          grep -n 'func (entry scoredDrama) ranked()' build-src/native/core/app_search_precision.go
+          grep -n 'json:"rank,omitempty"' build-src/native/core/app_runtime.go
+          grep -n 'bool get titleMatched' build-src/lib/models.dart
+          grep -n 'rank: fresh.rank > rank ? fresh.rank : rank' build-src/lib/models.dart
+          grep -n '精确匹配' build-src/lib/ui/search/search_page.dart
+          grep -n '另有 \$related 部相关' build-src/lib/ui/search/search_page.dart
+          grep -n 'RANK_EXACT = 7000' build-src/bundled-modules/jinguoduanju/main.js
+          grep -n 'function searchScore' build-src/bundled-modules/jinguoduanju/main.js
+          grep -n 'search-v3:' build-src/bundled-modules/jinguoduanju/main.js
+          grep -n 'clip(clean(introMatch' build-src/bundled-modules/yesheai/main.js
+          grep -n 'desc: description' build-src/bundled-modules/yesheai/main.js
+          test "$(grep -c 'func Test' build-src/native/core/app_search_precision_test.go | tr -d ' ')" -ge 11
+          diff -q build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
+          diff -q build-src/bundled-modules/jinguoduanju/main.js build-src/native/core/bundled/jinguoduanju/main.js
+          if grep -q 'search-v2:' build-src/bundled-modules/jinguoduanju/main.js; then echo "残留 search-v2 缓存键"; exit 1; fi
           echo "---- 内置模块 ----"
           ls build-src/bundled-modules
           test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "11"
@@ -107,7 +151,40 @@ jobs:
           grep -m1 '"version"' build-src/bundled-modules/yeguo/manifest.json
           grep -m1 '"version"' build-src/bundled-modules/heitao/manifest.json
           grep -m1 '"version"' build-src/bundled-modules/jinguoduanju/manifest.json
+          echo "---- 搜索七档补全 ----"
+          for module in crdj heitao huangguo-video huangju huangtao jinguoduanju xduanju youzidj; do
+            grep -q 'function attachIntros' "build-src/bundled-modules/$module/main.js" || { echo "缺 attachIntros: $module"; exit 1; }
+            grep -q 'function attachIntros' "build-src/native/core/bundled/$module/main.js" || { echo "embed 副本缺 attachIntros: $module"; exit 1; }
+          done
+          grep -q 'RE_CARD_META' build-src/bundled-modules/xduanju/main.js
+          grep -q 'drama-card-tag' build-src/bundled-modules/youzidj/main.js
+          grep -q 'htmlFirstClass(card.parent, "des")' build-src/bundled-modules/heitao/main.js
+          grep -q 'introUnknown' build-src/bundled-modules/huangtao/main.js
+          grep -q 'host.cacheSet("intro:"' build-src/bundled-modules/crdj/main.js
+          grep -q '"version": "1.0.1"' build-src/bundled-modules/xduanju/manifest.json
+          grep -q '"version": "1.1.1"' build-src/bundled-modules/youzidj/manifest.json
+          grep -q '"version": "1.0.3"' build-src/bundled-modules/heitao/manifest.json
           ls build-src/native/core/bundled
+          echo "---- 本地搜索索引 ----"
+          test -f build-src/native/core/app_search_index.go
+          test -f build-src/native/core/app_search_sync.go
+          test -f build-src/native/core/app_search_index_test.go
+          grep -n 'searchIndexMaxPerSite' build-src/native/core/app_search_index.go
+          grep -n 'func mergeSearchWithIndex' build-src/native/core/app_search_index.go
+          grep -n 'searchIndexPageSlice' build-src/native/core/app_search_index.go
+          grep -n 'splitIndexID' build-src/native/core/app_search_index.go
+          grep -n 'searchIndexWarmThreshold' build-src/native/core/app_search_index.go
+          grep -n ') indexDramas(' build-src/native/core/app_search_index.go
+          grep -n ') searchIndexed(' build-src/native/core/app_search_index.go
+          grep -n 'searchSyncIntroBatch' build-src/native/core/app_search_sync.go
+          grep -n ') indexIntros(' build-src/native/core/app_search_sync.go
+          grep -n 'NativeNormalize(drama)' build-src/native/core/app_search_sync.go
+          grep -n 'beginForeground' build-src/native/core/app_search_sync.go
+          grep -n 'mergeSearchWithIndex(kept, localPage, query)' build-src/native/core/app_runtime.go
+          grep -n 'engine.indexDramas(source, result.Items)' build-src/native/core/app_runtime.go
+          grep -n 'engine.kickSearchIndex(input.Source)' build-src/native/core/app_runtime.go
+          grep -n 'indexStore' build-src/native/core/app_runtime.go
+          test "$(grep -c 'func Test' build-src/native/core/app_search_index_test.go | tr -d ' ')" -ge 5
 
       - uses: actions/setup-python@v5
         with:
@@ -128,13 +205,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Intel 镜像里预装的 Xcode 版本列表可能和 arm64 镜像不完全一致。
-          # 之前 arm64 上是用默认的 Xcode 16.4 编过的，这里显式选同一版本，
-          # 避免换机器后因为 Xcode 版本不同编出不一样的东西；没有就退回默认。
-          if [ -d /Applications/Xcode_16.4.app ]; then
-            sudo xcode-select -s /Applications/Xcode_16.4.app
-          fi
-          ls -d /Applications/Xcode*.app 2>/dev/null || true
           xcode-select -p
           xcodebuild -version
           if ! command -v pod >/dev/null 2>&1; then
@@ -160,7 +230,7 @@ jobs:
           FLUTTER_XCODE_CODE_SIGN_IDENTITY: ''
           FLUTTER_XCODE_DEVELOPMENT_TEAM: ''
           # 与官方 2.0 的 bundle id 保持一致，方便覆盖安装并保留数据
-          PACKAGE_NAME: com.yingshib.xg
+          PACKAGE_NAME: com.guoapp.phoenix2
           # 内置我们自己的 10 个自建站源 + 修好的剧果（1.0.2，翻页到底不再报错）。
           # 官方内置的红果仓库需要私有部署密钥，这里不碰。
           BUNDLED_MODULES: >-
