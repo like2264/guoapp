@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+141-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+142-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+141' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+142' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -196,7 +196,10 @@ jobs:
             if grep -q 'if (page !== 1) return;' "build-src/bundled-modules/$module/main.js"; then echo "还在只补第一页: $module"; exit 1; fi
           done
           grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
-          grep -q '"version": "1.1.4"' build-src/bundled-modules/youzidj/manifest.json
+          grep -q '"version": "1.1.5"' build-src/bundled-modules/youzidj/manifest.json
+          grep -q '"version": "1.1.5"' build-src/native/core/bundled/youzidj/manifest.json
+          grep -q 'function lightestVariant' build-src/bundled-modules/youzidj/main.js
+          grep -q 'function lightestVariant' build-src/native/core/bundled/youzidj/main.js
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/yesheai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
@@ -392,10 +395,22 @@ jobs:
           grep -q 'segmentLoad) result()' build-src/native/core/app_stream.go
           grep -q 'segment_wait_timeout' build-src/native/core/app_stream.go
           grep -q 'segment_slow' build-src/native/core/app_stream.go
-          grep -q 'WithTimeout(session.ctx, 12' build-src/native/core/app_stream.go
+          grep -q 'WithTimeout(ctx, 15' build-src/native/core/app_stream.go
           grep -q 'double? _seekBack;' build-src/lib/playback_session.dart
           grep -q 'bool _landedRecently(DateTime now)' build-src/lib/playback_session.dart
           grep -q 'func TestNativeStreamPlayerDoesNotWaitForStuckLoad' build-src/native/core/app_stream_load_test.go
+
+          echo '---- +142 拖动：并发闸门 / 旧预取作废 / 原地重试回退 ----'
+          grep -q 'const nativeUpstreamSlots = 3' build-src/native/core/app_stream.go
+          grep -q 'const nativeSeekJump = 8' build-src/native/core/app_stream.go
+          grep -q 'const nativePrefetchWindow = 12' build-src/native/core/app_stream.go
+          grep -q 'nativeStreamServer) nativeNotePlay' build-src/native/core/app_stream.go
+          grep -q 'nativeStreamSession) acquireSlot' build-src/native/core/app_stream.go
+          grep -q 'segment_jump' build-src/native/core/app_stream.go
+          grep -q 'func TestNativeStreamLimitsUpstreamConcurrency' build-src/native/core/app_stream_load_test.go
+          grep -q 'int _eofRetries = 0;' build-src/lib/playback_session.dart
+          grep -q '次，往回退' build-src/lib/playback_session.dart
+          grep -q 'version: 2.0.0+142' build-src/pubspec.yaml
 
       - uses: actions/setup-python@v5
         with:
