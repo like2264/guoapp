@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+138-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+139-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+138' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+139' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -225,7 +225,8 @@ jobs:
           # +135 当时靠「原地重发定位」(_seekNudges) 兜拖动卡住，+138 换成
           # 「退回拖动前位置」，那个字段已删除，这里改验现行判定条件。
           grep -q 'seeking || recentSeek' build-src/lib/playback_session.dart
-          grep -q 'seekStallTimeout = Duration(seconds: 10)' build-src/lib/playback_recovery.dart
+          # +135 引入的拖动超时（当时 10 秒，+139 放宽到 20 秒）：这里只验它还在。
+          grep -q 'seekStallTimeout = Duration(seconds:' build-src/lib/playback_recovery.dart
           grep -q 'nativeMediaFailureLimit' build-src/native/core/app_stream.go
           grep -q 'http.StatusGone' build-src/native/core/app_stream.go
           grep -q 'FittedBox' build-src/lib/ui/widgets/page_header.dart
@@ -350,8 +351,7 @@ jobs:
           test "$(grep -c 'func Test' build-src/native/core/app_search_index_test.go | tr -d ' ')" -ge 5
 
           echo '---- +138 顶栏对齐 / 选集面板 / 柚子拖动真因 ----'
-          grep -q 'final rows = lines.any((line) => line.isNotEmpty)' build-src/lib/ui/widgets/page_header.dart
-          grep -q 'for (final line in rows.take(3))' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'final stats = rows.take(3).toList();' build-src/lib/ui/widgets/page_header.dart
           grep -q 'shape: const RoundedRectangleBorder()' build-src/lib/ui/player/playback_sheets.dart
           grep -q 'ring: false' build-src/lib/ui/player/playback_sheets.dart
           if grep -q 'tint: 1.2' build-src/lib/ui/player/playback_sheets.dart; then echo '选集面板还是原来那层白玻璃（发灰）'; exit 1; fi
@@ -361,13 +361,23 @@ jobs:
           grep -q 'if (ring)' build-src/lib/ui/theme/glass.dart
           grep -q 'int _seekMovingTicks = 0;' build-src/lib/playback_session.dart
           grep -q '_seekMovingTicks >= 2' build-src/lib/playback_session.dart
-          grep -q 'static final Set<String> _seekHostile' build-src/lib/playback_session.dart
-          grep -q 'PlaybackHealth.seekSnapBack' build-src/lib/playback_session.dart
-          grep -q 'waiting && _seekFrom != null && _seekHostile.contains(_source)' build-src/lib/playback_session.dart
+          grep -q 'PlaybackHealth.seekStallTimeout' build-src/lib/playback_session.dart
           if grep -q '_seekNudges' build-src/lib/playback_session.dart; then echo '+137 的拖动重发现在没人调了，字段还留着'; exit 1; fi
-          grep -q 'static const seekSnapBack' build-src/lib/playback_recovery.dart
+          grep -q 'static const seekStallTimeout = Duration(seconds: 20);' build-src/lib/playback_recovery.dart
           grep -q 'int get hintTick' build-src/lib/playback_session.dart
           grep -q 'void _showHint()' build-src/lib/ui/player/portrait_player_page.dart
+
+          echo '---- +139 顶栏横排统计 / 拖动放行 / 同一片只下一次 ----'
+          grep -q 'if (stats.isNotEmpty) ...\[const SizedBox(width: 9), numbers()\],' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'Widget numbers() => Column(' build-src/lib/ui/widgets/page_header.dart
+          if grep -q '_seekHostile' build-src/lib/playback_session.dart; then echo '站源还被记成跳不过去（_seekHostile 应已删除）'; exit 1; fi
+          grep -q '拖动请求：' build-src/lib/playback_session.dart
+          grep -q '拖动到位：' build-src/lib/playback_session.dart
+          grep -q 'segmentLoad struct' build-src/native/core/app_stream.go
+          grep -q 'nativeStreamSession) beginLoad' build-src/native/core/app_stream.go
+          grep -q 'load.publish(' build-src/native/core/app_stream.go
+          test -f build-src/native/core/app_stream_load_test.go
+          grep -q 'func TestNativeStreamCoalescesSegmentLoad' build-src/native/core/app_stream_load_test.go
 
       - uses: actions/setup-python@v5
         with:
