@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+133-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+134-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+133' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+134' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -168,7 +168,7 @@ jobs:
           if grep -q 'search-v2:' build-src/bundled-modules/jinguoduanju/main.js; then echo "残留 search-v2 缓存键"; exit 1; fi
           echo "---- 内置模块 ----"
           ls build-src/bundled-modules
-          test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "11"
+          test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "12"
           grep -m1 '"version"' build-src/bundled-modules/huangguo-video/manifest.json
           grep -m1 '"version"' build-src/bundled-modules/huangju/manifest.json
           grep -n 'categorySearchPage' build-src/bundled-modules/huangguoai/main.js
@@ -217,6 +217,23 @@ jobs:
           grep -q 'countArrivals: true' build-src/lib/explore_feed.dart
           grep -q '_arrivedToday' build-src/lib/explore_feed.dart
           grep -q 'arrived: _facts.arrived' build-src/lib/explore_feed.dart
+          echo '---- 拖动卡死 / 封面 / 时间 / 单击收起 / 标签 ----'
+          grep -q 'seek_player_error' build-src/lib/playback_session.dart
+          grep -q 'preferRefresh: seekFailure' build-src/lib/playback_session.dart
+          grep -q 'preferRefresh' build-src/lib/playback_recovery.dart
+          grep -q 'oversized' build-src/native/core/app_stream.go
+          grep -q 'String? coverPath' build-src/lib/core_bridge.dart
+          grep -q '_readyPath' build-src/lib/ui/widgets/cover_image.dart
+          grep -q 'topLeftBadge' build-src/lib/ui/widgets/drama_tile.dart
+          grep -q '_progressClock' build-src/lib/ui/player/portrait_player_page.dart
+          grep -q 'canHide' build-src/lib/ui/player/portrait_player_page.dart
+          echo '---- 黄果旧版模块 ----'
+          grep -q '"id": "huangguo-old"' build-src/bundled-modules/huangguo-old/manifest.json
+          grep -q 'function decryptResponse' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'function discoverProtocol' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'playlet-recommend/home/choose' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'function decryptResponse' build-src/native/core/bundled/huangguo-old/main.js
+          diff -q build-src/bundled-modules/huangguo-old/main.js build-src/native/core/bundled/huangguo-old/main.js
           echo '---- 夜社全部 = 各栏目拼接 ----'
           grep -q 'var SECTIONS =' build-src/bundled-modules/yesheai/main.js
           grep -q 'function sectionPages' build-src/bundled-modules/yesheai/main.js
