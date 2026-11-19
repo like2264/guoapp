@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+137-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+138-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+137' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+138' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -346,6 +346,24 @@ jobs:
           grep -n 'searchSyncIntroQueueGap' build-src/native/core/app_search_sync.go
           grep -n 'indexStore' build-src/native/core/app_runtime.go
           test "$(grep -c 'func Test' build-src/native/core/app_search_index_test.go | tr -d ' ')" -ge 5
+
+          echo '---- +138 顶栏对齐 / 选集面板 / 柚子拖动真因 ----'
+          grep -q 'final rows = lines.any((line) => line.isNotEmpty)' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'for (final line in rows.take(3))' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'shape: const RoundedRectangleBorder()' build-src/lib/ui/player/playback_sheets.dart
+          grep -q 'ring: false' build-src/lib/ui/player/playback_sheets.dart
+          if grep -q 'tint: 1.2' build-src/lib/ui/player/playback_sheets.dart; then echo '选集面板还是原来那层白玻璃（发灰）'; exit 1; fi
+          grep -q 'tint: 0.45' build-src/lib/ui/player/playback_sheets.dart
+          grep -q 'shade: 0.72' build-src/lib/ui/player/playback_sheets.dart
+          grep -q 'this.ring = true,' build-src/lib/ui/theme/glass.dart
+          grep -q 'if (ring)' build-src/lib/ui/theme/glass.dart
+          grep -q 'int _seekMovingTicks = 0;' build-src/lib/playback_session.dart
+          grep -q '_seekMovingTicks >= 2' build-src/lib/playback_session.dart
+          grep -q 'static final Set<String> _seekHostile' build-src/lib/playback_session.dart
+          grep -q 'PlaybackHealth.seekSnapBack' build-src/lib/playback_session.dart
+          grep -q 'static const seekSnapBack' build-src/lib/playback_recovery.dart
+          grep -q 'int get hintTick' build-src/lib/playback_session.dart
+          grep -q 'void _showHint()' build-src/lib/ui/player/portrait_player_page.dart
 
       - uses: actions/setup-python@v5
         with:
