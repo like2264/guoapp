@@ -278,7 +278,7 @@ jobs:
           grep -q 'Colors.white.withValues(alpha: 0.95)' build-src/lib/ui/theme/glass.dart
           grep -q 'mainAxisSize: withActions ? MainAxisSize.max : MainAxisSize.min' build-src/lib/ui/widgets/page_header.dart
           grep -q 'horizontal: 18, vertical: 10' build-src/lib/ui/widgets/page_header.dart
-          grep -q 'Widget _titleText(TextStyle style)' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'Widget _titleText(TextStyle? style)' build-src/lib/ui/widgets/page_header.dart
           grep -q 'if (drama.vip)' build-src/lib/ui/widgets/drama_tile.dart
           grep -q 'child: const IgnorePointer(child: VipBadge())' build-src/lib/ui/widgets/drama_tile.dart
           grep -q 'dark ? Colors.white : colors.onSurface' build-src/lib/ui/player/episode_grid.dart
@@ -392,10 +392,12 @@ jobs:
           FLUTTER_XCODE_DEVELOPMENT_TEAM: ''
           # 与官方 2.0 的 bundle id 保持一致，方便覆盖安装并保留数据
           PACKAGE_NAME: com.guoapp.phoenix2
-          # 内置我们自己的 10 个自建站源 + 修好的剧果（1.0.2，翻页到底不再报错）。
+          # 内置我们自己的自建站源 + 修好的剧果（翻页到底不再报错）+ 黄果旧版（封面域名修好）。
           # 官方内置的红果仓库需要私有部署密钥，这里不碰。
+          # 注意：prepare_bundled_modules() 会先清空 native/core/bundled 再按这个清单复制，
+          # 所以清单漏一个，那个模块就真的不会内置（+135~+137 漏了 huangguo-old，一直是用户手动装的）。
           BUNDLED_MODULES: >-
-            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai,bundled-modules/huangju,bundled-modules/yeguo,bundled-modules/heitao,bundled-modules/jinguoduanju
+            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai,bundled-modules/huangju,bundled-modules/yeguo,bundled-modules/heitao,bundled-modules/jinguoduanju,bundled-modules/huangguo-old
         run: python scripts/build_ios.py
 
       - uses: actions/upload-artifact@v4
