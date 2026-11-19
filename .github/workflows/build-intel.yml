@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+136-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+137-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+136' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+137' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -195,7 +195,7 @@ jobs:
             grep -q 'INTRO_LATER_BUDGET' "build-src/native/core/bundled/$module/main.js" || { echo "embed 副本没有后续页补简介: $module"; exit 1; }
             if grep -q 'if (page !== 1) return;' "build-src/bundled-modules/$module/main.js"; then echo "还在只补第一页: $module"; exit 1; fi
           done
-          grep -q '"version": "1.0.3"' build-src/bundled-modules/xduanju/manifest.json
+          grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
           grep -q '"version": "1.1.4"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/yesheai/manifest.json
@@ -203,7 +203,7 @@ jobs:
           grep -q '"version": "1.0.5"' build-src/bundled-modules/huangju/manifest.json
           grep -q '"version": "1.0.5"' build-src/bundled-modules/huangtao/manifest.json
           grep -q '"version": "1.0.6"' build-src/bundled-modules/jinguoduanju/manifest.json
-          grep -q '"version": "1.0.8"' build-src/bundled-modules/huangguo-video/manifest.json
+          grep -q '"version": "1.0.9"' build-src/bundled-modules/huangguo-video/manifest.json
           echo '---- 顶栏今日更新：列表带集数 + 新上 N 部 ----'
           grep -q 'flagEpisodes' build-src/bundled-modules/huangtao/main.js
           grep -q 'remarkEpisodes' build-src/bundled-modules/xduanju/main.js
@@ -212,11 +212,11 @@ jobs:
           grep -q 'episodeCount = episodes' build-src/bundled-modules/yesheai/main.js
           grep -q 'flagEpisodes' build-src/native/core/bundled/huangtao/main.js
           grep -q 'remarkEpisodes' build-src/native/core/bundled/xduanju/main.js
-          grep -q 'final arrivedTotal = carriedArrived' build-src/lib/source_stats.dart
+          grep -q 'final arrivedTotal = 0' build-src/lib/source_stats.dart
           grep -q 'countArrivals: true' build-src/lib/explore_feed.dart
           grep -q 'arrived: _facts.arrived' build-src/lib/explore_feed.dart
           echo '---- +135 顶栏统一口径 / 首页更新优先 / 柚子拖动 ----'
-          grep -q '集 · 新上 ' build-src/lib/source_stats.dart
+          grep -q '今日更新 ${count(updated)} 集' build-src/lib/source_stats.dart
           grep -q 'readEpisodes' build-src/lib/source_stats.dart
           grep -q 'readSeeded' build-src/lib/source_stats.dart
           grep -q 'factsEpisodeLimit' build-src/lib/source_stats.dart
@@ -228,7 +228,7 @@ jobs:
           grep -q 'http.StatusGone' build-src/native/core/app_stream.go
           grep -q 'FittedBox' build-src/lib/ui/widgets/page_header.dart
           grep -q 'colors.onSurface.withValues(alpha: 0.06)' build-src/lib/ui/detail/detail_page.dart
-          grep -q '"version": "1.0.1"' build-src/bundled-modules/huangguo-old/manifest.json
+          grep -q '"version": "1.0.3"' build-src/bundled-modules/huangguo-old/manifest.json
           grep -q '"group": "huangguo"' build-src/bundled-modules/huangguo-old/manifest.json
           test "$(ls build-src/native/core/bundled | grep -c huangguo-old)" = "1"
           echo '---- 拖动卡死 / 封面 / 时间 / 单击收起 / 标签 ----'
@@ -247,13 +247,13 @@ jobs:
           grep -q 'Future<void> _awaitPicture' build-src/lib/playback_session.dart
           grep -q 'DateTime? _seekAt' build-src/lib/playback_session.dart
           grep -q 'final waiting = seeking || recentSeek' build-src/lib/playback_session.dart
-          grep -q "String get arrivalsLabel" build-src/lib/source_stats.dart
+          if grep -q 'arrivalsLabel' build-src/lib/source_stats.dart; then echo '「新上」没删干净'; exit 1; fi
           grep -q "String get updatesLabel" build-src/lib/source_stats.dart
-          grep -q 'explore.facts.arrivalsLabel' build-src/lib/ui/explore/explore_page.dart
+          if grep -q 'arrivalsLabel' build-src/lib/ui/explore/explore_page.dart; then echo '顶栏还在用 arrivalsLabel'; exit 1; fi
           grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart
           grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
           grep -q 'note: note' build-src/lib/ui/widgets/source_bar.dart
-          grep -q '!changed.contains(id)' build-src/lib/explore_feed.dart
+          grep -q 'if (!known.contains(id)) structure = true;' build-src/lib/explore_feed.dart
           grep -q 'var structure = false' build-src/lib/explore_feed.dart
           grep -q 'return [...marked, ...rest]' build-src/lib/explore_feed.dart
           grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
@@ -268,8 +268,32 @@ jobs:
           grep -q 'barHeight = 70.0' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -q 'final Color? color' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -q 'Color(0xFF2E7DF6)' build-src/lib/ui/shell/app_shell.dart
-          grep -q 'Colors.black.withValues(alpha: dark ? 0.32 : 0.055)' build-src/lib/ui/theme/glass.dart
-          grep -q 'spreadRadius: 0.6' build-src/lib/ui/theme/glass.dart
+          grep -q 'Colors.black.withValues(alpha: dark ? 0.32 : 0.08)' build-src/lib/ui/theme/glass.dart
+          grep -q 'spreadRadius: 0.8' build-src/lib/ui/theme/glass.dart
+          echo '---- +137 删新上 / 玻璃加厚 / VIP / 封面域名 / 拖动退位 ----'
+          grep -q 'final arrivedTotal = 0' build-src/lib/source_stats.dart
+          grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart
+          grep -q '0xFF9AA3B2).withValues(alpha: 0.16)' build-src/lib/ui/theme/glass.dart
+          grep -q 'layer(0.64)' build-src/lib/ui/theme/glass.dart
+          grep -q 'Colors.white.withValues(alpha: 0.95)' build-src/lib/ui/theme/glass.dart
+          grep -q 'mainAxisSize: withActions ? MainAxisSize.max : MainAxisSize.min' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'horizontal: 18, vertical: 10' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'Widget _titleText(TextStyle style)' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'if (drama.vip)' build-src/lib/ui/widgets/drama_tile.dart
+          grep -q 'child: const IgnorePointer(child: VipBadge())' build-src/lib/ui/widgets/drama_tile.dart
+          grep -q 'dark ? Colors.white : colors.onSurface' build-src/lib/ui/player/episode_grid.dart
+          grep -q 'dark ? 0.55 : 0.78' build-src/lib/ui/player/episode_grid.dart
+          grep -q 'border: false' build-src/lib/ui/player/playback_sheets.dart
+          grep -q 'Duration? _seekFrom' build-src/lib/playback_session.dart
+          grep -q '退回拖动前' build-src/lib/playback_session.dart
+          grep -q 'var COVER_CDN = "https://zzzznnn.lkkwip.cn"' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'var COVER_UPLOAD_CDN = "https://pic.zdmhyg.cn"' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'function coverPath' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'zzzznnn' build-src/native/core/bundled/huangguo-old/main.js
+          diff -q build-src/bundled-modules/huangguo-old/main.js build-src/native/core/bundled/huangguo-old/main.js
+          grep -q '"version": "1.0.9"' build-src/native/core/bundled/huangguo-video/manifest.json
+          grep -q '"version": "1.0.4"' build-src/native/core/bundled/xduanju/manifest.json
+          grep -q 'pic.zdmhyg.cn' build-src/bundled-modules/huangguo-old/manifest.json
           echo '---- 黄果旧版模块 ----'
           grep -q '"id": "huangguo-old"' build-src/bundled-modules/huangguo-old/manifest.json
           grep -q 'function decryptResponse' build-src/bundled-modules/huangguo-old/main.js
