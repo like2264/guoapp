@@ -222,7 +222,9 @@ jobs:
           grep -q 'factsEpisodeLimit' build-src/lib/source_stats.dart
           grep -q 'List<Drama> _prioritize' build-src/lib/explore_feed.dart
           grep -q '_markChanged' build-src/lib/explore_feed.dart
-          grep -q '_seekNudges' build-src/lib/playback_session.dart
+          # +135 当时靠「原地重发定位」(_seekNudges) 兜拖动卡住，+138 换成
+          # 「退回拖动前位置」，那个字段已删除，这里改验现行判定条件。
+          grep -q 'seeking || recentSeek' build-src/lib/playback_session.dart
           grep -q 'seekStallTimeout = Duration(seconds: 10)' build-src/lib/playback_recovery.dart
           grep -q 'nativeMediaFailureLimit' build-src/native/core/app_stream.go
           grep -q 'http.StatusGone' build-src/native/core/app_stream.go
@@ -361,6 +363,8 @@ jobs:
           grep -q '_seekMovingTicks >= 2' build-src/lib/playback_session.dart
           grep -q 'static final Set<String> _seekHostile' build-src/lib/playback_session.dart
           grep -q 'PlaybackHealth.seekSnapBack' build-src/lib/playback_session.dart
+          grep -q 'waiting && _seekFrom != null && _seekHostile.contains(_source)' build-src/lib/playback_session.dart
+          if grep -q '_seekNudges' build-src/lib/playback_session.dart; then echo '+137 的拖动重发现在没人调了，字段还留着'; exit 1; fi
           grep -q 'static const seekSnapBack' build-src/lib/playback_recovery.dart
           grep -q 'int get hintTick' build-src/lib/playback_session.dart
           grep -q 'void _showHint()' build-src/lib/ui/player/portrait_player_page.dart
