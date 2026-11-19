@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+134-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+135-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+134' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+135' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -84,7 +84,7 @@ jobs:
           grep -n 'function dataTotal' build-src/bundled-modules/huangguoai/main.js
           grep -n 'result.total = total' build-src/bundled-modules/huangguoai/main.js
           grep -n 'factsSeenLimit' build-src/lib/source_stats.dart
-          grep -n 'List<String> readSeen' build-src/lib/source_stats.dart
+          grep -n 'List<String> readKnown' build-src/lib/source_stats.dart
           grep -n '_noteAll' build-src/lib/explore_feed.dart
           grep -n '_seenDirty' build-src/lib/explore_feed.dart
           grep -n '目录总量' build-src/DEVELOPMENT.md
@@ -212,11 +212,25 @@ jobs:
           grep -q 'episodeCount = episodes' build-src/bundled-modules/yesheai/main.js
           grep -q 'flagEpisodes' build-src/native/core/bundled/huangtao/main.js
           grep -q 'remarkEpisodes' build-src/native/core/bundled/xduanju/main.js
-          grep -q 'arrivedTotal = carriedArrived' build-src/lib/source_stats.dart
-          grep -q '今日更新 0 集' build-src/lib/source_stats.dart
+          grep -q 'final arrivedTotal = carriedArrived' build-src/lib/source_stats.dart
           grep -q 'countArrivals: true' build-src/lib/explore_feed.dart
-          grep -q '_arrivedToday' build-src/lib/explore_feed.dart
           grep -q 'arrived: _facts.arrived' build-src/lib/explore_feed.dart
+          echo '---- +135 顶栏统一口径 / 首页更新优先 / 柚子拖动 ----'
+          grep -q '集 · 新上 ' build-src/lib/source_stats.dart
+          grep -q 'readEpisodes' build-src/lib/source_stats.dart
+          grep -q 'readSeeded' build-src/lib/source_stats.dart
+          grep -q 'factsEpisodeLimit' build-src/lib/source_stats.dart
+          grep -q 'List<Drama> _prioritize' build-src/lib/explore_feed.dart
+          grep -q '_markChanged' build-src/lib/explore_feed.dart
+          grep -q '_seekNudges' build-src/lib/playback_session.dart
+          grep -q 'seekStallTimeout = Duration(seconds: 10)' build-src/lib/playback_recovery.dart
+          grep -q 'nativeMediaFailureLimit' build-src/native/core/app_stream.go
+          grep -q 'http.StatusGone' build-src/native/core/app_stream.go
+          grep -q 'FittedBox' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'colors.onSurface.withValues(alpha: 0.06)' build-src/lib/ui/detail/detail_page.dart
+          grep -q '"version": "1.0.1"' build-src/bundled-modules/huangguo-old/manifest.json
+          grep -q '"group": "huangguo"' build-src/bundled-modules/huangguo-old/manifest.json
+          test "$(ls build-src/native/core/bundled | grep -c huangguo-old)" = "1"
           echo '---- 拖动卡死 / 封面 / 时间 / 单击收起 / 标签 ----'
           grep -q 'seek_player_error' build-src/lib/playback_session.dart
           grep -q 'preferRefresh: seekFailure' build-src/lib/playback_session.dart
