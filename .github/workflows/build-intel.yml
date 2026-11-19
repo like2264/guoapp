@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+135-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+136-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,11 +39,11 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+135' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+136' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
-          grep -n 'seek_stalled_5s' build-src/lib/playback_session.dart
+          grep -n "reason == 'seek_stalled'" build-src/lib/playback_session.dart
           grep -n '全站' build-src/lib/ui/search/search_page.dart
           grep -c 'shellBottomInset' build-src/lib/ui/follow/follow_page.dart
           grep -n 'onHorizontalDragStart' build-src/lib/ui/widgets/glass_tab_bar.dart
@@ -241,6 +241,35 @@ jobs:
           grep -q 'topLeftBadge' build-src/lib/ui/widgets/drama_tile.dart
           grep -q '_progressClock' build-src/lib/ui/player/portrait_player_page.dart
           grep -q 'canHide' build-src/lib/ui/player/portrait_player_page.dart
+          echo '---- +136 玻璃重做 / 三行顶栏 / 新上不虚增 / VIP 角标 / 柚子拖动 ----'
+          grep -q 'static const seekGrace' build-src/lib/playback_recovery.dart
+          grep -q 'stallTimeout = Duration(seconds: 24)' build-src/lib/playback_recovery.dart
+          grep -q 'Future<void> _awaitPicture' build-src/lib/playback_session.dart
+          grep -q 'DateTime? _seekAt' build-src/lib/playback_session.dart
+          grep -q 'final waiting = seeking || recentSeek' build-src/lib/playback_session.dart
+          grep -q "String get arrivalsLabel" build-src/lib/source_stats.dart
+          grep -q "String get updatesLabel" build-src/lib/source_stats.dart
+          grep -q 'explore.facts.arrivalsLabel' build-src/lib/ui/explore/explore_page.dart
+          grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart
+          grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'note: note' build-src/lib/ui/widgets/source_bar.dart
+          grep -q '!changed.contains(id)' build-src/lib/explore_feed.dart
+          grep -q 'var structure = false' build-src/lib/explore_feed.dart
+          grep -q 'return [...marked, ...rest]' build-src/lib/explore_feed.dart
+          grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'hg-card-tag--vip' build-src/bundled-modules/huangguo-video/main.js
+          grep -q 'has-vip|is-vip' build-src/bundled-modules/huangguo-video/main.js
+          grep -q "episode.vip ? { vip: true }" build-src/bundled-modules/huangguo-video/main.js
+          grep -q 'lock' build-src/bundled-modules/xduanju/main.js
+          grep -q 'locked ? { vip: true }' build-src/bundled-modules/xduanju/main.js
+          grep -q 'hg-card-tag--vip' build-src/native/core/bundled/huangguo-video/main.js
+          grep -q 'locked ? { vip: true }' build-src/native/core/bundled/xduanju/main.js
+          grep -q 'source: host.source' build-src/bundled-modules/huangguo-old/main.js
+          grep -q 'barHeight = 70.0' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -q 'final Color? color' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -q 'Color(0xFF2E7DF6)' build-src/lib/ui/shell/app_shell.dart
+          grep -q 'Colors.black.withValues(alpha: dark ? 0.32 : 0.055)' build-src/lib/ui/theme/glass.dart
+          grep -q 'spreadRadius: 0.6' build-src/lib/ui/theme/glass.dart
           echo '---- 黄果旧版模块 ----'
           grep -q '"id": "huangguo-old"' build-src/bundled-modules/huangguo-old/manifest.json
           grep -q 'function decryptResponse' build-src/bundled-modules/huangguo-old/main.js
