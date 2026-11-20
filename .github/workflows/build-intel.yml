@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+142-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+143-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+142' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+143' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -74,8 +74,8 @@ jobs:
           if grep -q 'const values = { page: String(page) };' build-src/bundled-modules/huangju/main.js; then echo '剧果还在按 20 条/页 翻'; exit 1; fi
           if grep -q 'pages \* items.length' build-src/bundled-modules/crdj/main.js; then echo '91短剧还在用总页数估总量'; exit 1; fi
           grep -n 'String _summary()' build-src/lib/ui/widgets/drama_grid.dart
-          grep -n '已列出 ' build-src/lib/ui/widgets/drama_grid.dart
-          grep -n 'total: numbering ? explore.facts.site : null' build-src/lib/ui/explore/explore_page.dart
+          if grep -q '已列出 ' build-src/lib/ui/widgets/drama_grid.dart; then echo '底栏还在报第二个数'; exit 1; fi
+          grep -n 'FeedFooter(feed: feed, count: feed.items.length)' build-src/lib/ui/explore/explore_page.dart
           for module in huangju crdj; do
             diff -q "build-src/bundled-modules/$module/main.js" "build-src/native/core/bundled/$module/main.js" || { echo "embed 副本没同步: $module"; exit 1; }
           done
@@ -115,6 +115,9 @@ jobs:
           grep -n 'ordinal: ordinal' build-src/lib/ui/widgets/drama_tile.dart
           grep -n 'final int? numberFrom;' build-src/lib/ui/widgets/drama_grid.dart
           grep -n 'numberFrom: numbering ? 1 : null' build-src/lib/ui/explore/explore_page.dart
+          # 有头条时 explore.items 会 skip(1)，编号必须让位，否则最后一张卡片的
+          # 序号会比「共 N 部」少 1。numbering 条件里必须有 hero == null。
+          grep -n 'hero == null &&' build-src/lib/ui/explore/explore_page.dart
           grep -n '已经到底了 · 共' build-src/lib/ui/widgets/drama_grid.dart
           if grep -q 'numberFrom' build-src/lib/ui/search/search_page.dart; then echo '搜索页不该有序号'; exit 1; fi
           grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
@@ -196,10 +199,7 @@ jobs:
             if grep -q 'if (page !== 1) return;' "build-src/bundled-modules/$module/main.js"; then echo "还在只补第一页: $module"; exit 1; fi
           done
           grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
-          grep -q '"version": "1.1.5"' build-src/bundled-modules/youzidj/manifest.json
-          grep -q '"version": "1.1.5"' build-src/native/core/bundled/youzidj/manifest.json
-          grep -q 'function lightestVariant' build-src/bundled-modules/youzidj/main.js
-          grep -q 'function lightestVariant' build-src/native/core/bundled/youzidj/main.js
+          grep -q '"version": "1.1.4"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/yesheai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
@@ -256,10 +256,10 @@ jobs:
           if grep -q 'arrivalsLabel' build-src/lib/source_stats.dart; then echo '「新上」没删干净'; exit 1; fi
           grep -q "String get updatesLabel" build-src/lib/source_stats.dart
           if grep -q 'arrivalsLabel' build-src/lib/ui/explore/explore_page.dart; then echo '顶栏还在用 arrivalsLabel'; exit 1; fi
-          grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart
+          if grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart; then echo '顶栏还在显示今日更新'; exit 1; fi
           grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
           grep -q 'note: note' build-src/lib/ui/widgets/source_bar.dart
-          grep -q 'if (!known.contains(id)) structure = true;' build-src/lib/explore_feed.dart
+          grep -q 'if (!known.contains(id)) {' build-src/lib/explore_feed.dart
           grep -q 'var structure = false' build-src/lib/explore_feed.dart
           grep -q 'return [...marked, ...rest]' build-src/lib/explore_feed.dart
           grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
@@ -278,12 +278,12 @@ jobs:
           grep -q 'spreadRadius: 0.8' build-src/lib/ui/theme/glass.dart
           echo '---- +137 删新上 / 玻璃加厚 / VIP / 封面域名 / 拖动退位 ----'
           grep -q 'final arrivedTotal = 0' build-src/lib/source_stats.dart
-          grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart
+          if grep -q 'explore.facts.updatesLabel' build-src/lib/ui/explore/explore_page.dart; then echo '顶栏还在显示今日更新'; exit 1; fi
           grep -q '0xFF9AA3B2).withValues(alpha: 0.16)' build-src/lib/ui/theme/glass.dart
           grep -q 'layer(0.64)' build-src/lib/ui/theme/glass.dart
           grep -q 'Colors.white.withValues(alpha: 0.95)' build-src/lib/ui/theme/glass.dart
           grep -q 'mainAxisSize: withActions ? MainAxisSize.max : MainAxisSize.min' build-src/lib/ui/widgets/page_header.dart
-          grep -q 'horizontal: 18, vertical: 10' build-src/lib/ui/widgets/page_header.dart
+          grep -q 'horizontal: 18)' build-src/lib/ui/widgets/page_header.dart
           grep -q 'Widget _titleText(TextStyle? style)' build-src/lib/ui/widgets/page_header.dart
           grep -q 'if (drama.vip)' build-src/lib/ui/widgets/drama_tile.dart
           grep -q 'child: const IgnorePointer(child: VipBadge())' build-src/lib/ui/widgets/drama_tile.dart
@@ -395,23 +395,43 @@ jobs:
           grep -q 'segmentLoad) result()' build-src/native/core/app_stream.go
           grep -q 'segment_wait_timeout' build-src/native/core/app_stream.go
           grep -q 'segment_slow' build-src/native/core/app_stream.go
-          grep -q 'WithTimeout(ctx, 15' build-src/native/core/app_stream.go
+          grep -q 'WithTimeout(session.ctx, 12' build-src/native/core/app_stream.go
           grep -q 'double? _seekBack;' build-src/lib/playback_session.dart
           grep -q 'bool _landedRecently(DateTime now)' build-src/lib/playback_session.dart
           grep -q 'func TestNativeStreamPlayerDoesNotWaitForStuckLoad' build-src/native/core/app_stream_load_test.go
 
-          echo '---- +142 拖动：并发闸门 / 旧预取作废 / 原地重试回退 ----'
-          grep -q 'const nativeUpstreamSlots = 3' build-src/native/core/app_stream.go
-          grep -q 'const nativeSeekJump = 8' build-src/native/core/app_stream.go
-          grep -q 'const nativePrefetchWindow = 12' build-src/native/core/app_stream.go
-          grep -q 'nativeStreamServer) nativeNotePlay' build-src/native/core/app_stream.go
-          grep -q 'nativeStreamSession) acquireSlot' build-src/native/core/app_stream.go
-          grep -q 'segment_jump' build-src/native/core/app_stream.go
-          grep -q 'func TestNativeStreamLimitsUpstreamConcurrency' build-src/native/core/app_stream_load_test.go
-          grep -q 'int _eofRetries = 0;' build-src/lib/playback_session.dart
-          grep -q '次，往回退' build-src/lib/playback_session.dart
-          grep -q 'version: 2.0.0+142' build-src/pubspec.yaml
-
+          # ---- 2.0.0+143 ----
+          # 长按卡片改成弹菜单（下载 / 追剧），不再一按就追剧
+          grep -n 'Future<void> showDramaActions' build-src/lib/ui/widgets/drama_actions.dart
+          grep -n 'drama-action-' build-src/lib/ui/widgets/drama_actions.dart
+          grep -c 'showDramaActions' build-src/lib/ui/explore/explore_page.dart build-src/lib/ui/search/search_page.dart
+          if grep -q 'quickFollow' build-src/lib/ui/explore/explore_page.dart; then echo '发现页长按还在直接追剧'; exit 1; fi
+          if grep -q 'quickFollow' build-src/lib/ui/search/search_page.dart; then echo '搜索页长按还在直接追剧'; exit 1; fi
+          # 顶栏不再显示「今日更新 M 集」，只留「共 N 部」
+          if grep -q 'updatesLabel' build-src/lib/ui/explore/explore_page.dart; then echo '顶栏还在显示今日更新'; exit 1; fi
+          grep -n 'note: explore.facts.headline' build-src/lib/ui/explore/explore_page.dart
+          # 追剧 / 模块 / 我的 玻璃高度回到 58
+          grep -n 'SizedBox(height: 58' build-src/lib/ui/widgets/page_header.dart
+          # 发现页（有统计）也必须走同一个 58：不能再留「stats.isEmpty 才 58」的分支，
+          # 否则发现页又被内容撑回 44，两个页面高度对不上。
+          if grep -q '? SizedBox(height: 58' build-src/lib/ui/widgets/page_header.dart; then echo '玻璃高度还在按 stats 分支'; exit 1; fi
+          # 部数：翻到底实测值优先，顶栏、底部、最后一张卡片的序号共用一个数
+          grep -n 'int get total' build-src/lib/source_stats.dart
+          grep -n 'if (listed > 0) return listed;' build-src/lib/source_stats.dart
+          # 不能再回落到站点声明：声明偏大时顶栏会比底部多几十上百部（+143 前的老毛病），
+          # 声明偏小时顶栏又比底部少，两头都对不上。
+          if grep -q 'listed < site' build-src/lib/source_stats.dart; then echo 'total 还在拿站点声明兜底'; exit 1; fi
+          grep -n "'listed': measured" build-src/lib/source_stats.dart
+          grep -n 'writeListed' build-src/lib/source_stats.dart build-src/lib/explore_feed.dart
+          grep -n '_noteListed' build-src/lib/explore_feed.dart
+          grep -n '_watchListed' build-src/lib/explore_feed.dart
+          # 新作品靠前：今天第一次见到的 id 也进「今日变化」名单
+          grep -n 'if (countNew) _markChanged' build-src/lib/explore_feed.dart
+          grep -n 'countNew: whole' build-src/lib/explore_feed.dart
+          grep -c 'SourceFacts' build-src/test/source_facts_test.dart
+          # 柚子模块留在 1.1.4：1.1.5 会把画质钉在 720
+          grep -n '"version": "1.1.4"' build-src/bundled-modules/youzidj/manifest.json build-src/native/core/bundled/youzidj/manifest.json
+          if grep -q 'lightestVariant' build-src/bundled-modules/youzidj/main.js; then echo '柚子模块又变成钉 720 的 1.1.5 了'; exit 1; fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
