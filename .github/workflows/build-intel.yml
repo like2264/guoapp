@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+145-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+146-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+145' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+146' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -171,7 +171,7 @@ jobs:
           if grep -q 'search-v2:' build-src/bundled-modules/jinguoduanju/main.js; then echo "残留 search-v2 缓存键"; exit 1; fi
           echo "---- 内置模块 ----"
           ls build-src/bundled-modules
-          test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "12"
+          test "$(ls build-src/bundled-modules | wc -l | tr -d ' ')" = "11"
           grep -m1 '"version"' build-src/bundled-modules/huangguo-video/manifest.json
           grep -m1 '"version"' build-src/bundled-modules/huangju/manifest.json
           grep -n 'categorySearchPage' build-src/bundled-modules/huangguoai/main.js
@@ -203,6 +203,8 @@ jobs:
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
           grep -q '"version": "1.0.7"' build-src/bundled-modules/yesheai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
+          # 1.0.5 的末页封顶会按第 1 页学到的页数砍掉真实末页，已回退，别再回来。
+          if grep -qF 'function knownPageCount' build-src/bundled-modules/heitao/main.js; then echo '黑桃又上了末页封顶 1.0.5'; exit 1; fi
           grep -q '"version": "1.0.5"' build-src/bundled-modules/huangju/manifest.json
           grep -q '"version": "1.0.6"' build-src/bundled-modules/huangtao/manifest.json
           grep -q '"version": "1.0.6"' build-src/bundled-modules/jinguoduanju/manifest.json
@@ -255,9 +257,11 @@ jobs:
           grep -q 'http.StatusGone' build-src/native/core/app_stream.go
           grep -q 'FittedBox' build-src/lib/ui/widgets/page_header.dart
           grep -q 'colors.onSurface.withValues(alpha: 0.06)' build-src/lib/ui/detail/detail_page.dart
-          grep -q '"version": "1.0.3"' build-src/bundled-modules/huangguo-old/manifest.json
-          grep -q '"group": "huangguo"' build-src/bundled-modules/huangguo-old/manifest.json
-          test "$(ls build-src/native/core/bundled | grep -c huangguo-old)" = "1"
+          # 2.0.0+146 起黄果旧版交回作者自己维护，内置清单与 embed 副本里都不许再有它
+          test ! -d build-src/bundled-modules/huangguo-old
+          test ! -d build-src/native/core/bundled/huangguo-old
+          grep -q '"huangguo-old": "1.0.3"' build-src/native/core/module_bundled.go
+          grep -q 'retireBundledModulesLocked' build-src/native/core/module_bundled.go
           echo '---- 拖动卡死 / 封面 / 时间 / 单击收起 / 标签 ----'
           grep -q 'seek_player_error' build-src/lib/playback_session.dart
           grep -q 'preferRefresh: seekFailure' build-src/lib/playback_session.dart
@@ -292,7 +296,6 @@ jobs:
           grep -q 'locked ? { vip: true }' build-src/bundled-modules/xduanju/main.js
           grep -q 'hg-card-tag--vip' build-src/native/core/bundled/huangguo-video/main.js
           grep -q 'locked ? { vip: true }' build-src/native/core/bundled/xduanju/main.js
-          grep -q 'source: host.source' build-src/bundled-modules/huangguo-old/main.js
           grep -q 'barHeight = 70.0' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -q 'final Color? color' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -q 'Color(0xFF2E7DF6)' build-src/lib/ui/shell/app_shell.dart
@@ -314,21 +317,8 @@ jobs:
           grep -q 'border: false' build-src/lib/ui/player/playback_sheets.dart
           grep -q 'Duration? _seekFrom' build-src/lib/playback_session.dart
           grep -q '退回拖动前' build-src/lib/playback_session.dart
-          grep -q 'var COVER_CDN = "https://zzzznnn.lkkwip.cn"' build-src/bundled-modules/huangguo-old/main.js
-          grep -q 'var COVER_UPLOAD_CDN = "https://pic.zdmhyg.cn"' build-src/bundled-modules/huangguo-old/main.js
-          grep -q 'function coverPath' build-src/bundled-modules/huangguo-old/main.js
-          grep -q 'zzzznnn' build-src/native/core/bundled/huangguo-old/main.js
-          diff -q build-src/bundled-modules/huangguo-old/main.js build-src/native/core/bundled/huangguo-old/main.js
           grep -q '"version": "1.0.9"' build-src/native/core/bundled/huangguo-video/manifest.json
           grep -q '"version": "1.0.4"' build-src/native/core/bundled/xduanju/manifest.json
-          grep -q 'pic.zdmhyg.cn' build-src/bundled-modules/huangguo-old/manifest.json
-          echo '---- 黄果旧版模块 ----'
-          grep -q '"id": "huangguo-old"' build-src/bundled-modules/huangguo-old/manifest.json
-          grep -q 'function decryptResponse' build-src/bundled-modules/huangguo-old/main.js
-          grep -q 'function discoverProtocol' build-src/bundled-modules/huangguo-old/main.js
-          grep -q 'playlet-recommend/home/choose' build-src/bundled-modules/huangguo-old/main.js
-          grep -q 'function decryptResponse' build-src/native/core/bundled/huangguo-old/main.js
-          diff -q build-src/bundled-modules/huangguo-old/main.js build-src/native/core/bundled/huangguo-old/main.js
           echo '---- 夜社全部 = 各栏目拼接 ----'
           grep -q 'var SECTIONS =' build-src/bundled-modules/yesheai/main.js
           grep -q 'function sectionPages' build-src/bundled-modules/yesheai/main.js
@@ -492,6 +482,18 @@ jobs:
           # 柚子模块留在 1.1.4：1.1.5 会把画质钉在 720
           grep -n '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json build-src/native/core/bundled/youzidj/manifest.json
           if grep -q 'lightestVariant' build-src/bundled-modules/youzidj/main.js; then echo '柚子模块又变成钉 720 的 1.1.5 了'; exit 1; fi
+          echo '---- +146 按站源代理 / 黄果旧版移出内置 / 无封面飞入 / 底栏灰度 ----'
+          grep -q 'ProxyBySource' build-src/native/core/app_settings.go
+          grep -q 'proxyRoute' build-src/native/core/app_settings.go
+          grep -q 'withNativeSource' build-src/native/core/provider_host.go
+          grep -q 'nativeSourceKey{}' build-src/native/core/app_settings.go
+          grep -q 'Source: p.module.manifest.ID' build-src/native/core/module_script.go
+          grep -q 'proxyBySource' build-src/lib/resource_settings.dart
+          grep -q 'class SourceProxySettings' build-src/lib/ui/settings/source_proxy_settings.dart
+          grep -q 'SourceProxySettings(' build-src/lib/ui/settings/settings_sections.dart
+          grep -q 'TestRetiredBundledModuleRemovedOnlyForBuiltinCopy' build-src/native/core/module_retired_test.go
+          if grep -q 'child: Hero(' build-src/lib/ui/widgets/cover_image.dart; then echo '详情页封面飞入又回来了'; exit 1; fi
+          grep -q 'Colors.black.withValues(alpha: 0.058)' build-src/lib/ui/widgets/glass_tab_bar.dart
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -537,12 +539,14 @@ jobs:
           FLUTTER_XCODE_DEVELOPMENT_TEAM: ''
           # 与官方 2.0 的 bundle id 保持一致，方便覆盖安装并保留数据
           PACKAGE_NAME: com.guoapp.phoenix2
-          # 内置我们自己的自建站源 + 修好的剧果（翻页到底不再报错）+ 黄果旧版（封面域名修好）。
+          # 内置我们自己的自建站源 + 修好的剧果（翻页到底不再报错）。
           # 官方内置的红果仓库需要私有部署密钥，这里不碰。
+          # 2.0.0+146 起黄果旧版交回作者自己发模块，不再内置（老用户的残留由
+          # native/core/module_bundled.go 的 retiredBundledModules 清掉）。
           # 注意：prepare_bundled_modules() 会先清空 native/core/bundled 再按这个清单复制，
-          # 所以清单漏一个，那个模块就真的不会内置（+135~+137 漏了 huangguo-old，一直是用户手动装的）。
+          # 所以清单漏一个，那个模块就真的不会内置。
           BUNDLED_MODULES: >-
-            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai,bundled-modules/huangju,bundled-modules/yeguo,bundled-modules/heitao,bundled-modules/jinguoduanju,bundled-modules/huangguo-old
+            bundled-modules/xduanju,bundled-modules/huangtao,bundled-modules/yesheai,bundled-modules/crdj,bundled-modules/youzidj,bundled-modules/huangguo-video,bundled-modules/huangguoai,bundled-modules/huangju,bundled-modules/yeguo,bundled-modules/heitao,bundled-modules/jinguoduanju
         run: python scripts/build_ios.py
 
       - uses: actions/upload-artifact@v4
