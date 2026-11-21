@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+143-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+144-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+143' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+144' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -199,14 +199,34 @@ jobs:
             if grep -q 'if (page !== 1) return;' "build-src/bundled-modules/$module/main.js"; then echo "还在只补第一页: $module"; exit 1; fi
           done
           grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
-          grep -q '"version": "1.1.4"' build-src/bundled-modules/youzidj/manifest.json
+          grep -q '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
-          grep -q '"version": "1.0.3"' build-src/bundled-modules/yesheai/manifest.json
+          grep -q '"version": "1.0.5"' build-src/bundled-modules/yesheai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
           grep -q '"version": "1.0.5"' build-src/bundled-modules/huangju/manifest.json
-          grep -q '"version": "1.0.5"' build-src/bundled-modules/huangtao/manifest.json
+          grep -q '"version": "1.0.6"' build-src/bundled-modules/huangtao/manifest.json
           grep -q '"version": "1.0.6"' build-src/bundled-modules/jinguoduanju/manifest.json
           grep -q '"version": "1.0.9"' build-src/bundled-modules/huangguo-video/manifest.json
+          echo '---- 部数：页数缓存 / UUID 卡片 / 多季剧 ----'
+          # 页数缓存必须存字符串（传对象会被写成 "[object Object]"）
+          for module in youzidj huangtao yesheai; do
+            grep -qF 'function serveAll' "build-src/bundled-modules/$module/main.js" || { echo "没有 serveAll: $module"; exit 1; }
+            grep -qF 'function sectionsKnown' "build-src/bundled-modules/$module/main.js" || { echo "没有 sectionsKnown: $module"; exit 1; }
+            grep -qF 'JSON.stringify(pages)' "build-src/bundled-modules/$module/main.js" || { echo "页数缓存还在传对象: $module"; exit 1; }
+            if grep -qF 'host.cacheSet(SECTION_PAGES_KEY, pages,' "build-src/bundled-modules/$module/main.js"; then echo "页数缓存还在传对象: $module"; exit 1; fi
+            grep -qF 'if (!sectionsKnown()) pages0 = refreshSectionPages();' "build-src/bundled-modules/$module/main.js" || { echo "缺页数时不补: $module"; exit 1; }
+          done
+          # 柚子：UUID 卡片要认得出来
+          grep -qF 'var RE_CODE = /^[a-z0-9][a-z0-9-]{3,40}$/;' build-src/bundled-modules/youzidj/main.js
+          if grep -qF 'ai-adult/[a-z0-9]{4,32}' build-src/bundled-modules/youzidj/main.js; then echo '卡片正则还卡在 32 位'; exit 1; fi
+          # 柚子：多季剧不再并成一张卡，第一季沿用老标识
+          grep -qF 'function slugOf' build-src/bundled-modules/youzidj/main.js
+          grep -qF 'function pageBase' build-src/bundled-modules/youzidj/main.js
+          grep -qF 'if (number === 1) return KIND_DRAMAS + "/" + slugOnly;' build-src/bundled-modules/youzidj/main.js
+          if grep -qF 'if (season > 0) rest = rest.slice(0, season);' build-src/bundled-modules/youzidj/main.js; then echo '多季剧还在按 slug 合并'; exit 1; fi
+          cmp build-src/bundled-modules/youzidj/main.js build-src/native/core/bundled/youzidj/main.js
+          cmp build-src/bundled-modules/huangtao/main.js build-src/native/core/bundled/huangtao/main.js
+          cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
           echo '---- 顶栏今日更新：列表带集数 + 新上 N 部 ----'
           grep -q 'flagEpisodes' build-src/bundled-modules/huangtao/main.js
           grep -q 'remarkEpisodes' build-src/bundled-modules/xduanju/main.js
@@ -223,7 +243,8 @@ jobs:
           grep -q 'readEpisodes' build-src/lib/source_stats.dart
           grep -q 'readSeeded' build-src/lib/source_stats.dart
           grep -q 'factsEpisodeLimit' build-src/lib/source_stats.dart
-          grep -q 'List<Drama> _prioritize' build-src/lib/explore_feed.dart
+          # 2.0.0+144 起不再置顶新作品：这里反过来要求它不存在（详见后面的 +144 段）
+          if grep -q '_prioritize' build-src/lib/explore_feed.dart; then echo '首页还在把新作品提到最前'; exit 1; fi
           grep -q '_markChanged' build-src/lib/explore_feed.dart
           # +135 当时靠「原地重发定位」(_seekNudges) 兜拖动卡住，+138 换成
           # 「退回拖动前位置」，那个字段已删除，这里改验现行判定条件。
@@ -261,7 +282,8 @@ jobs:
           grep -q 'note: note' build-src/lib/ui/widgets/source_bar.dart
           grep -q 'if (!known.contains(id)) {' build-src/lib/explore_feed.dart
           grep -q 'var structure = false' build-src/lib/explore_feed.dart
-          grep -q 'return [...marked, ...rest]' build-src/lib/explore_feed.dart
+          # 2.0.0+144 删掉了「新作品靠前」，排序代码不再有 marked/rest 两拨
+          if grep -q 'marked, ...rest' build-src/lib/explore_feed.dart; then echo '首页还在重排新作品'; exit 1; fi
           grep -q 'IntrinsicWidth' build-src/lib/ui/widgets/page_header.dart
           grep -q 'hg-card-tag--vip' build-src/bundled-modules/huangguo-video/main.js
           grep -q 'has-vip|is-vip' build-src/bundled-modules/huangguo-video/main.js
@@ -400,13 +422,19 @@ jobs:
           grep -q 'bool _landedRecently(DateTime now)' build-src/lib/playback_session.dart
           grep -q 'func TestNativeStreamPlayerDoesNotWaitForStuckLoad' build-src/native/core/app_stream_load_test.go
 
-          # ---- 2.0.0+143 ----
-          # 长按卡片改成弹菜单（下载 / 追剧），不再一按就追剧
-          grep -n 'Future<void> showDramaActions' build-src/lib/ui/widgets/drama_actions.dart
-          grep -n 'drama-action-' build-src/lib/ui/widgets/drama_actions.dart
-          grep -c 'showDramaActions' build-src/lib/ui/explore/explore_page.dart build-src/lib/ui/search/search_page.dart
+          # ---- 2.0.0+143 / +144 长按卡片 ----
+          # 长按封面在卡片内部浮出「追剧 / 下载」，既不一按就追剧，也不再弹底部面板
+          grep -n 'List<DramaAction> dramaActions' build-src/lib/ui/widgets/drama_actions.dart
+          grep -n 'drama-action-' build-src/lib/ui/widgets/drama_tile.dart
+          grep -c 'actionsOf:' build-src/lib/ui/explore/explore_page.dart build-src/lib/ui/search/search_page.dart
+          grep -n 'final List<DramaAction>? actions;' build-src/lib/ui/widgets/drama_tile.dart
+          grep -n 'if (open)' build-src/lib/ui/widgets/drama_tile.dart
+          # 旧实现必须彻底消失：底部面板、以及退回「一按就追剧」
+          if grep -q 'showDramaActions' build-src/lib/ui/widgets/drama_actions.dart build-src/lib/ui/explore/explore_page.dart build-src/lib/ui/search/search_page.dart; then echo '还在走旧的底部面板'; exit 1; fi
+          if grep -q 'showModalBottomSheet' build-src/lib/ui/widgets/drama_actions.dart; then echo '长按还在弹底部面板'; exit 1; fi
           if grep -q 'quickFollow' build-src/lib/ui/explore/explore_page.dart; then echo '发现页长按还在直接追剧'; exit 1; fi
           if grep -q 'quickFollow' build-src/lib/ui/search/search_page.dart; then echo '搜索页长按还在直接追剧'; exit 1; fi
+          ls build-src/test/drama_tile_actions_test.dart
           # 顶栏不再显示「今日更新 M 集」，只留「共 N 部」
           if grep -q 'updatesLabel' build-src/lib/ui/explore/explore_page.dart; then echo '顶栏还在显示今日更新'; exit 1; fi
           grep -n 'note: explore.facts.headline' build-src/lib/ui/explore/explore_page.dart
@@ -425,12 +453,28 @@ jobs:
           grep -n 'writeListed' build-src/lib/source_stats.dart build-src/lib/explore_feed.dart
           grep -n '_noteListed' build-src/lib/explore_feed.dart
           grep -n '_watchListed' build-src/lib/explore_feed.dart
-          # 新作品靠前：今天第一次见到的 id 也进「今日变化」名单
-          grep -n 'if (countNew) _markChanged' build-src/lib/explore_feed.dart
-          grep -n 'countNew: whole' build-src/lib/explore_feed.dart
+          # 2.0.0+144 撤掉了「新作品靠前」：排序必须回到站源原始顺序，
+          # 置顶会让第 1 页序号与站点目录位置错开
+          if grep -q '_prioritize' build-src/lib/explore_feed.dart; then echo '首页还在把新作品提到最前'; exit 1; fi
+          if grep -q 'countNew' build-src/lib/explore_feed.dart; then echo '新作品计数参数没删干净'; exit 1; fi
           grep -c 'SourceFacts' build-src/test/source_facts_test.dart
+          # 发现页长条玻璃包住右侧三颗按钮；「共 N 部」用主题色
+          grep -n 'final bool stretch;' build-src/lib/ui/widgets/page_header.dart
+          grep -n 'stretch: true' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'noteColor: Theme.of(context).colorScheme.primary' build-src/lib/ui/explore/explore_page.dart
+          grep -n 'color: noteColor ?? colors.primary' build-src/lib/ui/widgets/page_header.dart
+          grep -n 'final bool stretch;' build-src/lib/ui/widgets/source_bar.dart
+          grep -c '长条玻璃把右侧三颗按钮一起包住' build-src/test/page_header_layout_test.dart
+          # 夜社只留短剧 + AI 漫剧：分类条白名单、拼接列表两栏
+          grep -n 'var KEEP_TYPES = { "1": true, "3": true, "4": true, "6": true, "16": true };' build-src/bundled-modules/yesheai/main.js
+          grep -nF 'if (!KEEP_TYPES[id]) continue;' build-src/bundled-modules/yesheai/main.js
+          grep -n 'var SECTIONS = \["6", "16"\];' build-src/bundled-modules/yesheai/main.js
+          if grep -q 'var SECTIONS = \["6", "7", "20", "21", "12", "16"\];' build-src/bundled-modules/yesheai/main.js; then echo '夜社还把电影/动漫/网剧/综艺拼进全部'; exit 1; fi
+          grep -n '"version": "1.0.5"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
+          cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
+          grep -c 'KEEP_TYPES' build-src/native/core/bundled/yesheai/main.js
           # 柚子模块留在 1.1.4：1.1.5 会把画质钉在 720
-          grep -n '"version": "1.1.4"' build-src/bundled-modules/youzidj/manifest.json build-src/native/core/bundled/youzidj/manifest.json
+          grep -n '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json build-src/native/core/bundled/youzidj/manifest.json
           if grep -q 'lightestVariant' build-src/bundled-modules/youzidj/main.js; then echo '柚子模块又变成钉 720 的 1.1.5 了'; exit 1; fi
       - uses: actions/setup-python@v5
         with:
