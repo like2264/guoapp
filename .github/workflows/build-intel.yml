@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+144-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+145-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+144' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+145' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -201,7 +201,7 @@ jobs:
           grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
           grep -q '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
-          grep -q '"version": "1.0.5"' build-src/bundled-modules/yesheai/manifest.json
+          grep -q '"version": "1.0.7"' build-src/bundled-modules/yesheai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
           grep -q '"version": "1.0.5"' build-src/bundled-modules/huangju/manifest.json
           grep -q '"version": "1.0.6"' build-src/bundled-modules/huangtao/manifest.json
@@ -333,7 +333,7 @@ jobs:
           grep -q 'var SECTIONS =' build-src/bundled-modules/yesheai/main.js
           grep -q 'function sectionPages' build-src/bundled-modules/yesheai/main.js
           grep -q 'function loadSection' build-src/bundled-modules/yesheai/main.js
-          grep -q 'totalPages \* PAGE_SIZE' build-src/bundled-modules/yesheai/main.js
+          grep -q 'function allTotal' build-src/bundled-modules/yesheai/main.js
           grep -q 'var SECTIONS =' build-src/native/core/bundled/yesheai/main.js
           echo '---- 黄桃/柚子 全部 = 各栏目拼接 ----'
           grep -q 'var SECTIONS =' build-src/bundled-modules/huangtao/main.js
@@ -466,13 +466,29 @@ jobs:
           grep -n 'final bool stretch;' build-src/lib/ui/widgets/source_bar.dart
           grep -c '长条玻璃把右侧三颗按钮一起包住' build-src/test/page_header_layout_test.dart
           # 夜社只留短剧 + AI 漫剧：分类条白名单、拼接列表两栏
-          grep -n 'var KEEP_TYPES = { "1": true, "3": true, "4": true, "6": true, "16": true };' build-src/bundled-modules/yesheai/main.js
+          grep -nF 'var KEEP_TYPES = { "1": true, "4": true };' build-src/bundled-modules/yesheai/main.js
           grep -nF 'if (!KEEP_TYPES[id]) continue;' build-src/bundled-modules/yesheai/main.js
-          grep -n 'var SECTIONS = \["6", "16"\];' build-src/bundled-modules/yesheai/main.js
+          grep -nF 'var SECTIONS = ["1", "4"];' build-src/bundled-modules/yesheai/main.js
+          # +145：国产短剧(3)/AI 漫剧(16)/混排总库(6) 都不许再进「全部」
+          if grep -qF 'var SECTIONS = ["6", "16"];' build-src/bundled-modules/yesheai/main.js; then echo '夜社又把 AI 漫剧拼进全部'; exit 1; fi
+          if grep -qF 'var SECTIONS = ["6"];' build-src/bundled-modules/yesheai/main.js; then echo '夜社还在用混排总库当全部'; exit 1; fi
+          grep -q 'SECTION_LAST_KEY' build-src/bundled-modules/yesheai/main.js
+          grep -q 'function sectionTotalWith' build-src/bundled-modules/yesheai/main.js
           if grep -q 'var SECTIONS = \["6", "7", "20", "21", "12", "16"\];' build-src/bundled-modules/yesheai/main.js; then echo '夜社还把电影/动漫/网剧/综艺拼进全部'; exit 1; fi
-          grep -n '"version": "1.0.5"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
+          grep -n '"version": "1.0.7"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
           cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
           grep -c 'KEEP_TYPES' build-src/native/core/bundled/yesheai/main.js
+          # 分类栏不给入口之外，旧客户端缓存里的白名单外分类点进去也必须空
+          grep -qF 'if (!KEEP_TYPES[value]) return { items: [], hasMore: false, total: 0 };' build-src/bundled-modules/yesheai/main.js
+          echo '---- 模块换版：该站目录缓存作废 ----'
+          grep -q 'dropStaleModuleCaches' build-src/native/core/app_catalog_cache.go
+          grep -q 'dropSourceCachesLocked(source)' build-src/native/core/app_catalog_cache.go
+          grep -q 'invalidateModuleCache' build-src/native/core/app_catalog_cache.go
+          grep -q 'Version: 5' build-src/native/core/app_catalog_cache.go
+          grep -q 'moduleVersions' build-src/native/core/app_runtime.go
+          grep -q 'engine.invalidateModuleCache(id)' build-src/native/core/module_install.go
+          grep -qF 'remote.isNotEmpty' build-src/lib/source_catalog.dart
+          grep -q 'TestCatalogCacheDroppedWhenModuleVersionChanges' build-src/native/core/app_module_cache_test.go
           # 柚子模块留在 1.1.4：1.1.5 会把画质钉在 720
           grep -n '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json build-src/native/core/bundled/youzidj/manifest.json
           if grep -q 'lightestVariant' build-src/bundled-modules/youzidj/main.js; then echo '柚子模块又变成钉 720 的 1.1.5 了'; exit 1; fi
