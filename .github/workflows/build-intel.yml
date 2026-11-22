@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+146-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+147-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+146' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+147' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -82,7 +82,9 @@ jobs:
           grep -n 'function catalogTotal' build-src/bundled-modules/huangguo-video/main.js
           grep -n 'result.total = total' build-src/bundled-modules/huangguo-video/main.js
           grep -n 'function dataTotal' build-src/bundled-modules/huangguoai/main.js
-          grep -n 'result.total = total' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'result.total = siteTotal' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'appendCards' build-src/bundled-modules/huangguoai/main.js
+          grep -n 'apiPrimary("/api/videos?sort=hot&page=1&size=24")' build-src/bundled-modules/huangguoai/main.js
           grep -n 'factsSeenLimit' build-src/lib/source_stats.dart
           grep -n 'List<String> readKnown' build-src/lib/source_stats.dart
           grep -n '_noteAll' build-src/lib/explore_feed.dart
@@ -115,9 +117,10 @@ jobs:
           grep -n 'ordinal: ordinal' build-src/lib/ui/widgets/drama_tile.dart
           grep -n 'final int? numberFrom;' build-src/lib/ui/widgets/drama_grid.dart
           grep -n 'numberFrom: numbering ? 1 : null' build-src/lib/ui/explore/explore_page.dart
-          # 有头条时 explore.items 会 skip(1)，编号必须让位，否则最后一张卡片的
-          # 序号会比「共 N 部」少 1。numbering 条件里必须有 hero == null。
-          grep -n 'hero == null &&' build-src/lib/ui/explore/explore_page.dart
+          # 2.0.0+147：头条大卡片不占序号，作品留在列表里，网格从 1 连续编号。
+          # 以前头条会被 skip(1) 摘出去、numbering 又要 hero == null，一有头条整页没序号。
+          grep -qF '!explore.recommending && explore.tab.id == CatalogCategory.all.id' build-src/lib/ui/explore/explore_page.dart
+          if grep -qF 'items.skip(1)' build-src/lib/explore_feed.dart; then echo '头条作品又被摘出列表'; exit 1; fi
           grep -n '已经到底了 · 共' build-src/lib/ui/widgets/drama_grid.dart
           if grep -q 'numberFrom' build-src/lib/ui/search/search_page.dart; then echo '搜索页不该有序号'; exit 1; fi
           grep -c 'single-char' build-src/bundled-modules/huangguo-video/main.js
@@ -201,7 +204,8 @@ jobs:
           grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
           grep -q '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
-          grep -q '"version": "1.0.7"' build-src/bundled-modules/yesheai/manifest.json
+          grep -q '"version": "1.0.8"' build-src/bundled-modules/yesheai/manifest.json
+          grep -q '"version": "1.0.4"' build-src/bundled-modules/huangguoai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
           # 1.0.5 的末页封顶会按第 1 页学到的页数砍掉真实末页，已回退，别再回来。
           if grep -qF 'function knownPageCount' build-src/bundled-modules/heitao/main.js; then echo '黑桃又上了末页封顶 1.0.5'; exit 1; fi
@@ -257,11 +261,15 @@ jobs:
           grep -q 'http.StatusGone' build-src/native/core/app_stream.go
           grep -q 'FittedBox' build-src/lib/ui/widgets/page_header.dart
           grep -q 'colors.onSurface.withValues(alpha: 0.06)' build-src/lib/ui/detail/detail_page.dart
-          # 2.0.0+146 起黄果旧版交回作者自己维护，内置清单与 embed 副本里都不许再有它
+          # 2.0.0+147 起黄果旧版交回作者自己维护，内置清单与 embed 副本里都不许再有它
           test ! -d build-src/bundled-modules/huangguo-old
           test ! -d build-src/native/core/bundled/huangguo-old
-          grep -q '"huangguo-old": "1.0.3"' build-src/native/core/module_bundled.go
+          # 退役判定必须按 main.js 的字节指纹认人：按版本号判会把作者发回来的
+          # 同名版本（也叫 1.0.3）每次启动都删掉，用户只能反复重装。
+          grep -q '5fde877bc6f82baea185ebd3c60b361b8b025894ba4a29bfb87ce604fa3358c9' build-src/native/core/module_bundled.go
           grep -q 'retireBundledModulesLocked' build-src/native/core/module_bundled.go
+          grep -q 'retiredBundledFile' build-src/native/core/module_bundled.go
+          if grep -q 'newerModuleVersion(installed.manifest.Version, last)' build-src/native/core/module_bundled.go; then echo '退役判定又退回版本号了'; exit 1; fi
           echo '---- 拖动卡死 / 封面 / 时间 / 单击收起 / 标签 ----'
           grep -q 'seek_player_error' build-src/lib/playback_session.dart
           grep -q 'preferRefresh: seekFailure' build-src/lib/playback_session.dart
@@ -465,7 +473,7 @@ jobs:
           grep -q 'SECTION_LAST_KEY' build-src/bundled-modules/yesheai/main.js
           grep -q 'function sectionTotalWith' build-src/bundled-modules/yesheai/main.js
           if grep -q 'var SECTIONS = \["6", "7", "20", "21", "12", "16"\];' build-src/bundled-modules/yesheai/main.js; then echo '夜社还把电影/动漫/网剧/综艺拼进全部'; exit 1; fi
-          grep -n '"version": "1.0.7"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
+          grep -n '"version": "1.0.8"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
           cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
           grep -c 'KEEP_TYPES' build-src/native/core/bundled/yesheai/main.js
           # 分类栏不给入口之外，旧客户端缓存里的白名单外分类点进去也必须空
@@ -491,9 +499,29 @@ jobs:
           grep -q 'proxyBySource' build-src/lib/resource_settings.dart
           grep -q 'class SourceProxySettings' build-src/lib/ui/settings/source_proxy_settings.dart
           grep -q 'SourceProxySettings(' build-src/lib/ui/settings/settings_sections.dart
-          grep -q 'TestRetiredBundledModuleRemovedOnlyForBuiltinCopy' build-src/native/core/module_retired_test.go
+          grep -q 'TestRetiredBundledModuleUsesContentDigest' build-src/native/core/module_retired_test.go
           if grep -q 'child: Hero(' build-src/lib/ui/widgets/cover_image.dart; then echo '详情页封面飞入又回来了'; exit 1; fi
           grep -q 'Colors.black.withValues(alpha: 0.058)' build-src/lib/ui/widgets/glass_tab_bar.dart
+          echo '---- +147 播放器 / 卡片浮层 / 序号 / 夜社搜索 / 部数刷新 ----'
+          # 暂停时也能单击收起播控；收起后中央留一枚播放图标（96 见方）
+          grep -q '_hidden = true' build-src/lib/ui/player/portrait_player_page.dart
+          if grep -qF '!_session.paused &&' build-src/lib/ui/player/portrait_player_page.dart; then echo '竖屏暂停又藏不掉播控了'; exit 1; fi
+          grep -qF 'width: 96,' build-src/lib/ui/player/portrait_player_page.dart
+          # 横屏没进全屏时也能横向滑动调进度
+          grep -qF 'enabled: true,' build-src/lib/ui/player/landscape_player_page.dart
+          if grep -qF 'enabled: full,' build-src/lib/ui/player/landscape_player_page.dart; then echo '横屏滑动又被全屏开关卡住了'; exit 1; fi
+          # 长按浮层：点外面 / 列表滚动 / 长按另一张都自动收
+          grep -qF 'onTapOutside' build-src/lib/ui/widgets/drama_tile.dart
+          grep -qF 'Scrollable.maybeOf(context)' build-src/lib/ui/widgets/drama_tile.dart
+          grep -qF '_openCard' build-src/lib/ui/widgets/drama_tile.dart
+          # 头条大卡片不占序号；作品留在列表里，网格从 1 连续编号
+          grep -qF 'final numbering =' build-src/lib/ui/explore/explore_page.dart
+          grep -qF '!explore.recommending && explore.tab.id == CatalogCategory.all.id' build-src/lib/ui/explore/explore_page.dart
+          # 夜社搜索按保留栏目（tid=1/4）搜，不再整站把砍掉的分类倒出来
+          grep -qF '/tid/' build-src/bundled-modules/yesheai/main.js
+          grep -qF 'searchPath(keyword, index, SECTIONS[i])' build-src/bundled-modules/yesheai/main.js
+          # 站点部数变了要作废旧的「翻到底实测值」，否则顶栏永远不动
+          grep -qF 'staleListed' build-src/lib/explore_feed.dart
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
