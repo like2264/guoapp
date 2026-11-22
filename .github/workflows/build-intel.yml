@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+147-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+148-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+147' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+148' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -204,7 +204,7 @@ jobs:
           grep -q '"version": "1.0.4"' build-src/bundled-modules/xduanju/manifest.json
           grep -q '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
-          grep -q '"version": "1.0.8"' build-src/bundled-modules/yesheai/manifest.json
+          grep -q '"version": "1.0.9"' build-src/bundled-modules/yesheai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/huangguoai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
           # 1.0.5 的末页封顶会按第 1 页学到的页数砍掉真实末页，已回退，别再回来。
@@ -447,8 +447,9 @@ jobs:
           # 不能再回落到站点声明：声明偏大时顶栏会比底部多几十上百部（+143 前的老毛病），
           # 声明偏小时顶栏又比底部少，两头都对不上。
           if grep -q 'listed < site' build-src/lib/source_stats.dart; then echo 'total 还在拿站点声明兜底'; exit 1; fi
-          grep -n "'listed': measured" build-src/lib/source_stats.dart
-          grep -n 'writeListed' build-src/lib/source_stats.dart build-src/lib/explore_feed.dart
+          # 2.0.0+148 起实测条数不再落盘（存下来就永远压过站点声明）
+          if grep -q 'writeListed' build-src/lib/source_stats.dart; then echo '实测条数又在落盘'; exit 1; fi
+          if grep -q "'listed':" build-src/lib/source_stats.dart; then echo '实测条数还在写进观测表'; exit 1; fi
           grep -n '_noteListed' build-src/lib/explore_feed.dart
           grep -n '_watchListed' build-src/lib/explore_feed.dart
           # 2.0.0+144 撤掉了「新作品靠前」：排序必须回到站源原始顺序，
@@ -473,7 +474,7 @@ jobs:
           grep -q 'SECTION_LAST_KEY' build-src/bundled-modules/yesheai/main.js
           grep -q 'function sectionTotalWith' build-src/bundled-modules/yesheai/main.js
           if grep -q 'var SECTIONS = \["6", "7", "20", "21", "12", "16"\];' build-src/bundled-modules/yesheai/main.js; then echo '夜社还把电影/动漫/网剧/综艺拼进全部'; exit 1; fi
-          grep -n '"version": "1.0.8"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
+          grep -n '"version": "1.0.9"' build-src/bundled-modules/yesheai/manifest.json build-src/native/core/bundled/yesheai/manifest.json
           cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
           grep -c 'KEEP_TYPES' build-src/native/core/bundled/yesheai/main.js
           # 分类栏不给入口之外，旧客户端缓存里的白名单外分类点进去也必须空
@@ -520,8 +521,57 @@ jobs:
           # 夜社搜索按保留栏目（tid=1/4）搜，不再整站把砍掉的分类倒出来
           grep -qF '/tid/' build-src/bundled-modules/yesheai/main.js
           grep -qF 'searchPath(keyword, index, SECTIONS[i])' build-src/bundled-modules/yesheai/main.js
-          # 站点部数变了要作废旧的「翻到底实测值」，否则顶栏永远不动
-          grep -qF 'staleListed' build-src/lib/explore_feed.dart
+          # 站点部数变了要作废本次会话的「翻到底实测值」，否则顶栏永远不动
+          grep -qF '_listed.remove(source)' build-src/lib/explore_feed.dart
+          echo '---- +148 播放器 / 搜索 / 部数刷新 ----'
+          # 横屏暂停也能收起播控；竖屏暂停收起后中央播放图标一起隐藏
+          grep -qF 'bool get _locked =>' build-src/lib/ui/player/landscape_player_page.dart
+          grep -qF 'bool get _pinned => _session.paused || _locked;' build-src/lib/ui/player/landscape_player_page.dart
+          if grep -qF 'if (_visible && !_pinned)' build-src/lib/ui/player/landscape_player_page.dart; then echo '横屏暂停又收不起播控了'; exit 1; fi
+          grep -qF 'final visible = _visible || _locked;' build-src/lib/ui/player/landscape_player_page.dart
+          grep -qF 'final pausedMark = session.ready && session.paused && _chromeShown;' build-src/lib/ui/player/portrait_player_page.dart
+          grep -qF 'opacity: pausedMark ? 1 : 0,' build-src/lib/ui/player/portrait_player_page.dart
+          # 播放界面「重新播放」：重新取地址后从当前位置接着放
+          grep -qF 'void _replay()' build-src/lib/ui/player/landscape_player_page.dart
+          grep -qF 'Icons.refresh_rounded' build-src/lib/ui/player/landscape_player_page.dart
+          grep -qF "key: const ValueKey('replay')" build-src/lib/ui/player/portrait_player_page.dart
+          grep -qF 'unawaited(_session.retry())' build-src/lib/ui/player/portrait_player_page.dart
+          # 搜索索引按模块版本作废（夜社砍掉的分类不能再从简介命中漏出来）
+          grep -qF 'TestSearchIndexDroppedWhenModuleVersionChanges' build-src/native/core/app_search_index_test.go
+          grep -qF 'site.version' build-src/native/core/app_search_index.go
+          grep -qF 'func (engine *nativeEngine) dropSearchIndex' build-src/native/core/app_search_index.go
+          grep -qF 'engine.dropSearchIndex(source)' build-src/native/core/app_catalog_cache.go
+          grep -qF 'engine.dropSearchIndex(name)' build-src/native/core/module_install.go
+          # 全站搜索：没有在线搜索能力的模块也要出结果（黄果旧版 1.0.0 只声明了 cover）
+          grep -qF 'func (engine *nativeEngine) searchAllSource' build-src/native/core/app_suggestions.go
+          grep -qF 'nativeInput{Source: source, Query: query, Page: 1}' build-src/native/core/app_suggestions.go
+          grep -qF 'searchIndexPageSlice(engine.searchIndexed(source, query), 1)' build-src/native/core/app_suggestions.go
+          grep -qF 'context.WithTimeout(ctx, 35*time.Second)' build-src/native/core/app_suggestions.go
+          if sed -n '/func (engine \*nativeEngine) nativeSearchAll/,/^}/p' build-src/native/core/app_suggestions.go | grep -qF 'providerAs[WarningSearcher]'; then echo '全站搜索又按能力表把模块整站跳过'; exit 1; fi
+          # 全站搜索「没搜全」的提示搬到顶部，底部只报条数
+          grep -qF 'class _IssueNote' build-src/lib/ui/search/search_page.dart
+          grep -qF 'onRetry: () =>' build-src/lib/ui/search/search_page.dart
+          grep -qF '个站源没搜全' build-src/lib/ui/search/search_page.dart
+          if grep -qF 'warning: result.warning' build-src/lib/ui/search/search_page.dart; then echo '全站搜索的失败提示又落回列表底部'; exit 1; fi
+          # 翻页空页别再无限转圈
+          grep -qF '_emptyPages' build-src/lib/drama_feed.dart
+          grep -qF '_hasMore = (page.hasMore || failed) && _emptyPages < 2;' build-src/lib/drama_feed.dart
+          grep -qF 'if (section.items.length === 0) {' build-src/bundled-modules/yesheai/main.js
+          # 夜社末页余数 10 分钟到期 + 翻到末页当场重算
+          grep -qF 'var SECTION_LAST_TTL_MS = 10 * 60 * 1000;' build-src/bundled-modules/yesheai/main.js
+          grep -qF 'function forgetSectionLast' build-src/bundled-modules/yesheai/main.js
+          grep -qF 'if (page === pages[type] && items.length > 0) {' build-src/bundled-modules/yesheai/main.js
+          cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
+          # 顶栏探头单独一条通道：跟列表翻页共用 session 会互相取消（context canceled）
+          grep -qF 'lane: probe ? ' build-src/lib/source_catalog.dart
+          grep -qF 'bool probe = false,' build-src/lib/source_catalog.dart
+          grep -qF 'catalog-$source$lane' build-src/lib/core_bridge.dart
+          grep -qF 'String lane = ' build-src/lib/core_bridge.dart
+          grep -cF 'probe: true,' build-src/lib/explore_feed.dart
+          # 实测条数只在本次会话生效
+          grep -qF 'final _listed = <String, int>{};' build-src/lib/explore_feed.dart
+          grep -qF 'listed: _listed[id] ?? 0,' build-src/lib/explore_feed.dart
+          if grep -qF 'listed: staleListed' build-src/lib/explore_feed.dart; then echo '实测条数又落盘了'; exit 1; fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
