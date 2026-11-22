@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+150-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+151-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+150' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+151' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -611,6 +611,54 @@ jobs:
           grep -qF '点重试后接着拉失败的那一页' build-src/test/drama_feed_test.dart
           grep -qF '一页部分失败但拿到了作品' build-src/test/drama_feed_test.dart
           grep -qF '翻到底实测的独立条数优先' build-src/test/source_facts_test.dart
+          echo '---- +151 选集面板：本剧总时长 ----'
+          # 每一集的时长相加，按「...mins ...s」显示；统计中给进度，全部拿到才只留数字
+          test -f build-src/lib/episode_durations.dart
+          grep -qF 'class EpisodeDurations extends ChangeNotifier' build-src/lib/episode_durations.dart
+          grep -qF 'String formatDuration(int milliseconds)' build-src/lib/episode_durations.dart
+          grep -qF '${seconds ~/ 60} mins' build-src/lib/episode_durations.dart
+          grep -qF '${seconds % 60} s' build-src/lib/episode_durations.dart
+          grep -qF '总时长 统计中…' build-src/lib/episode_durations.dart
+          grep -qF '总时长 ${formatDuration(totalMs)}' build-src/lib/episode_durations.dart
+          # 集数变了重算：同一份列表不重复请求，新增的集才去问
+          grep -qF 'final signature = usable.isEmpty' build-src/lib/episode_durations.dart
+          grep -qF 'if (signature == _signature) return;' build-src/lib/episode_durations.dart
+          # 整批都拿不到就收手，别反复打站源
+          grep -qF 'if (found == 0 && queue.isNotEmpty) {' build-src/lib/episode_durations.dart
+          # 面板上真的挂了这一行（电视布局塞在同一行里）
+          grep -qF 'EpisodeDurations durationsOf(DramaDetails details)' build-src/lib/ui/detail/detail_page.dart
+          grep -qF 'return EpisodeDurationLabel(stats: durationsOf(details), fontSize: m.summary);' build-src/lib/ui/detail/detail_page.dart
+          grep -qF '_durationLine(details, m),' build-src/lib/ui/detail/detail_page.dart
+          grep -qF '_durationText(details, m),' build-src/lib/ui/detail/detail_page.dart
+          grep -qF "episode_durations.dart';" build-src/lib/ui/detail/detail_page.dart
+          # 状态行抽成独立组件（EpisodeDurationLabel），跟着统计结果重建
+          grep -qF 'class EpisodeDurationLabel extends StatelessWidget' build-src/lib/episode_durations.dart
+          grep -qF 'if (text == null) return const SizedBox.shrink();' build-src/lib/episode_durations.dart
+          # 原生侧：只解析不开会话，按「剧 -> 分集」落盘缓存
+          test -f build-src/native/core/app_durations.go
+          grep -qF 'func (engine *nativeEngine) nativeChapterDurations' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationFile' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationWorkers    = 3' build-src/native/core/app_durations.go
+          grep -qF 'func (engine *nativeEngine) probeChapterDuration' build-src/native/core/app_durations.go
+          grep -qF 'func (engine *nativeEngine) variantPlaylistDuration' build-src/native/core/app_durations.go
+          grep -qF 'case "chapterDurations":' build-src/native/core/app_runtime.go
+          grep -qF '"chapterDurations"' build-src/native/core/app_build.go
+          grep -qF 'Chapters        []Chapter' build-src/native/core/app_runtime.go
+          grep -qF 'DurationMS: media.Duration.Milliseconds(),' build-src/native/core/app_playback_routes.go
+          grep -qF 'DurationMS int64 `json:"durationMs,omitempty"`' build-src/native/core/app_runtime.go
+          grep -qF "durationMs: intValue(json['durationMs'])," build-src/lib/models.dart
+          grep -qF "'action': 'chapterDurations'," build-src/lib/core_bridge.dart
+          # 不许为了这个数字去开播放会话 / 预取（那会把选集面板变成下载器）
+          if sed -n '/func (engine \*nativeEngine) nativeChapterDurations/,/^}/p' build-src/native/core/app_durations.go | grep -qF 'nativeOpenPlayback'; then echo '统计时长又去开播放会话了'; exit 1; fi
+          if sed -n '/func (engine \*nativeEngine) nativeChapterDurations/,/^}/p' build-src/native/core/app_durations.go | grep -qF 'nativePreload'; then echo '统计时长又去预取了'; exit 1; fi
+          # 测试
+          grep -qF '把每一集的时长加起来，按 mins/s 显示' build-src/test/episode_durations_test.dart
+          grep -qF '集数更新后只补新集，总数跟着涨' build-src/test/episode_durations_test.dart
+          grep -qF '整批都失败就收手，不反复重试' build-src/test/episode_durations_test.dart
+          grep -qF '统计完成后显示每集相加的总时长' build-src/test/detail_page_durations_test.dart
+          grep -qF '集数变多后总时长跟着涨' build-src/test/detail_page_durations_test.dart
+          grep -qF 'func TestDurationCacheRoundTrip' build-src/native/core/app_durations_test.go
+          grep -qF 'func TestTrimNativeDurations' build-src/native/core/app_durations_test.go
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
