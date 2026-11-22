@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+149-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+150-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+149' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+150' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -75,9 +75,9 @@ jobs:
           if grep -q 'pages \* items.length' build-src/bundled-modules/crdj/main.js; then echo '91短剧还在用总页数估总量'; exit 1; fi
           grep -n 'String _summary()' build-src/lib/ui/widgets/drama_grid.dart
           if grep -q '已列出 ' build-src/lib/ui/widgets/drama_grid.dart; then echo '底栏还在报第二个数'; exit 1; fi
-          # 2.0.0+149 起底部报站点声明的分类条数，不再报实际卡片数
-          grep -qF 'FeedFooter(feed: feed, count: explore.footerCount)' build-src/lib/ui/explore/explore_page.dart
-          if grep -qF 'count: feed.items.length)' build-src/lib/ui/explore/explore_page.dart; then echo '底部又回去报实际卡片数了'; exit 1; fi
+          # 2.0.0+150 起底部报「拉到底一共加载过多少部作品」，与顶栏、末位卡片同一个数
+          grep -qF 'FeedFooter(feed: feed, count: feed.items.length)' build-src/lib/ui/explore/explore_page.dart
+          if grep -qF 'count: explore.footerCount' build-src/lib/ui/explore/explore_page.dart; then echo '底部又回去报分类声明了'; exit 1; fi
           for module in huangju crdj; do
             diff -q "build-src/bundled-modules/$module/main.js" "build-src/native/core/bundled/$module/main.js" || { echo "embed 副本没同步: $module"; exit 1; }
           done
@@ -447,12 +447,12 @@ jobs:
           # 发现页（有统计）也必须走同一个 58：不能再留「stats.isEmpty 才 58」的分支，
           # 否则发现页又被内容撑回 44，两个页面高度对不上。
           if grep -q '? SizedBox(height: 58' build-src/lib/ui/widgets/page_header.dart; then echo '玻璃高度还在按 stats 分支'; exit 1; fi
-          # 部数：顶栏、底部、最后一张卡片的序号共用一个数，而且以站点声明为准
+          # 部数口径（2.0.0+150）：顶栏 = 底部 = 末位卡片 = 实际加载的独立作品数。
+          # 翻到底实测出来的条数优先，站点声明只在「还没翻到底」时当预期值。
           grep -n 'int get total' build-src/lib/source_stats.dart
-          grep -qF 'if (site > 0) return site;' build-src/lib/source_stats.dart
-          # 2.0.0+149 起 total 的第一行必须是站点声明，不许再让「翻到底实测值」抢先：
-          # 列表跨页按 id 去重，去重后的条数比站点少（夜社 2156/2166、黑桃 1528/1536）。
-          sed -n '/int get total {/,/return local;/p' build-src/lib/source_stats.dart | sed -n '2p' | grep -qF 'if (site > 0) return site;'
+          sed -n '/int get total {/,/return local;/p' build-src/lib/source_stats.dart | sed -n '2p' | grep -qF 'if (listed > 0) return listed;'
+          # 反向：不许再让站点声明抢先 —— +149 就是那样，结果顶栏 1,401、末位卡片 1,388。
+          if sed -n '/int get total {/,/return local;/p' build-src/lib/source_stats.dart | sed -n '2p' | grep -qF 'if (site > 0) return site;'; then echo 'total 又让站点声明压过实测值了'; exit 1; fi
           # 实测条数不落盘（2.0.0+148 起）：存下来就永远压过站点声明
           if grep -q 'writeListed' build-src/lib/source_stats.dart; then echo '实测条数又在落盘'; exit 1; fi
           if grep -q "'listed':" build-src/lib/source_stats.dart; then echo '实测条数还在写进观测表'; exit 1; fi
@@ -561,7 +561,8 @@ jobs:
           if grep -qF 'warning: result.warning' build-src/lib/ui/search/search_page.dart; then echo '全站搜索的失败提示又落回列表底部'; exit 1; fi
           # 翻页空页别再无限转圈
           grep -qF '_emptyPages' build-src/lib/drama_feed.dart
-          grep -qF '_hasMore = (page.hasMore || failed) && _emptyPages < 2;' build-src/lib/drama_feed.dart
+          # 2.0.0+150：空页要连三页才算到底（连两页就把「站点还有货」误判成翻完了）
+          grep -qF '_hasMore = page.hasMore && _emptyPages < _emptyPageLimit;' build-src/lib/drama_feed.dart
           grep -qF 'if (section.items.length === 0) {' build-src/bundled-modules/yesheai/main.js
           # 夜社末页余数 10 分钟到期 + 翻到末页当场重算
           grep -qF 'var SECTION_LAST_TTL_MS = 10 * 60 * 1000;' build-src/bundled-modules/yesheai/main.js
@@ -576,33 +577,40 @@ jobs:
           grep -cF 'probe: true,' build-src/lib/explore_feed.dart
           # 实测条数只在本次会话生效
           grep -qF 'final _listed = <String, int>{};' build-src/lib/explore_feed.dart
-          grep -qF 'listed: _listed[id] ?? 0,' build-src/lib/explore_feed.dart
+          grep -qF 'listed: _listed[source] ?? 0,' build-src/lib/explore_feed.dart
           if grep -qF 'listed: staleListed' build-src/lib/explore_feed.dart; then echo '实测条数又落盘了'; exit 1; fi
-          echo '---- +149 部数按站点声明 / 夜社翻页收尾 ----'
-          # 列表底部也报站点声明（分类页报该分类自己的声明值）
-          grep -qF 'int get footerCount' build-src/lib/explore_feed.dart
-          grep -qF 'if (declared > 0) return declared;' build-src/lib/explore_feed.dart
-          grep -qF 'final _tabTotals = <String, int>{};' build-src/lib/explore_feed.dart
-          grep -qF 'if (page.total > 0) _tabTotals[tab.id] = page.total;' build-src/lib/explore_feed.dart
-          grep -qF 'count: explore.footerCount' build-src/lib/ui/explore/explore_page.dart
-          if grep -qF 'count: feed.items.length' build-src/lib/ui/explore/explore_page.dart; then echo '列表底部又回去报实际卡片数了'; exit 1; fi
-          # 切站源清掉「刚拿过总量」的标记与分类声明，否则强制刷新会被挡掉
-          grep -qF '_lastSiteTotalAt = null;' build-src/lib/explore_feed.dart
-          grep -qF '_tabTotals.clear();' build-src/lib/explore_feed.dart
-          grep -qF 'if (siteTotal > 0 && freshPage) _lastSiteTotalAt = DateTime.now();' build-src/lib/explore_feed.dart
-          grep -qF 'freshPage: result.fresh,' build-src/lib/explore_feed.dart
-          if grep -qF 'if (siteTotal > 0) _lastSiteTotalAt' build-src/lib/explore_feed.dart; then echo '缓存页又在冒充刚拿到总量'; exit 1; fi
-          # 序号按卡片在站点列表里的原始位置排（去重藏掉的重复卡片也占号）
-          grep -qF 'List<int> get ordinals => _seq;' build-src/lib/drama_feed.dart
-          grep -qF 'final position = _raw + index + 1;' build-src/lib/drama_feed.dart
-          grep -qF 'ordinals: numbering ? feed.ordinals : null,' build-src/lib/ui/explore/explore_page.dart
-          grep -qF 'final List<int>? ordinals;' build-src/lib/ui/widgets/drama_grid.dart
-          # 翻页连错两次就收尾，别再无限转圈甩 context canceled
-          grep -qF 'if (_failedPages >= 2) _hasMore = false;' build-src/lib/drama_feed.dart
-          grep -qF "'翻页超时，稍后再试'" build-src/lib/drama_feed.dart
-          if grep -qF '_error = error.toString();' build-src/lib/drama_feed.dart; then echo 'context canceled 又直接甩给用户看'; exit 1; fi
-          grep -qF '去重藏掉的重复卡片照样占掉一个序号' build-src/test/drama_feed_test.dart
-          grep -qF '连续两次翻页报错就收尾' build-src/test/drama_feed_test.dart
+          echo '---- +150 三数一致：顶栏 = 底部 = 末位卡片 ----'
+          # 底部报实际加载数；顶栏翻到底后跟着它走
+          grep -qF 'count: feed.items.length' build-src/lib/ui/explore/explore_page.dart
+          # 序号连续：重复卡片不占号，末位卡片 = 列表加载数
+          if grep -qF 'List<int> get ordinals' build-src/lib/drama_feed.dart; then echo '序号又回到原始位置了（三数会对不上）'; exit 1; fi
+          if grep -qF 'final position = _raw + index + 1;' build-src/lib/drama_feed.dart; then echo '原始位置编号又回来了'; exit 1; fi
+          grep -qF 'numberFrom: numbering ? 1 : null,' build-src/lib/ui/explore/explore_page.dart
+          # 翻页失败只暂停自动翻页，绝不宣布「已经到底了」
+          if grep -v 'bool _hasMore' build-src/lib/drama_feed.dart | grep -qF '_hasMore = false'; then echo '翻页失败又让列表宣布到底了'; exit 1; fi
+          grep -qF 'if (_failedPages >= _autoRetryLimit) _autoPaused = true;' build-src/lib/drama_feed.dart
+          grep -qF 'bool get stalled => _autoPaused;' build-src/lib/drama_feed.dart
+          # 一页部分失败但拿到了作品：不甩错误、不挡后续翻页（野果 1,388 / 夜社 480 的元凶）
+          grep -qF "_error = page.items.isEmpty && page.warning.isNotEmpty ? page.warning : '';" build-src/lib/drama_feed.dart
+          # 重试只重拉失败的那一页
+          grep -qF 'Future<void> retry() async {' build-src/lib/drama_feed.dart
+          grep -qF 'onPressed: feed.retry,' build-src/lib/ui/widgets/drama_grid.dart
+          # 切源/刷新作废实测值；切回来强制重拉列表，数字和作品一起更新
+          grep -qF '_listed.remove(id);' build-src/lib/explore_feed.dart
+          grep -qF 'void _dropListed(String source) {' build-src/lib/explore_feed.dart
+          grep -qF '_dropListed(catalog.source.id);' build-src/lib/explore_feed.dart
+          grep -qF 'final _resumed = <String>{};' build-src/lib/explore_feed.dart
+          grep -qF '_resumed.remove(tab.id)' build-src/lib/explore_feed.dart
+          # _observe 重建 facts 时不能把实测值洗掉，否则顶栏又掉回站点声明
+          if grep -qF '_facts = next;' build-src/lib/explore_feed.dart; then echo '_observe 又把实测条数洗掉了'; exit 1; fi
+          # 分类声明值整套删掉，别再回来
+          if grep -qF '_tabTotals' build-src/lib/explore_feed.dart; then echo '分类声明值又回来了'; exit 1; fi
+          # 测试：三数一致 / 失败不停 / 重试重拉同一页
+          grep -qF '翻到底后顶栏、底部、末位卡片是同一个数' build-src/test/explore_feed_test.dart
+          grep -qF '翻页连续失败只暂停自动翻页' build-src/test/drama_feed_test.dart
+          grep -qF '点重试后接着拉失败的那一页' build-src/test/drama_feed_test.dart
+          grep -qF '一页部分失败但拿到了作品' build-src/test/drama_feed_test.dart
+          grep -qF '翻到底实测的独立条数优先' build-src/test/source_facts_test.dart
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
