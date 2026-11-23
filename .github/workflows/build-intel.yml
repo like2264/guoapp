@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+160-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+161-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+160' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+161' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -737,6 +737,10 @@ jobs:
           grep -qF 'AVAudioSession.interruptionNotification' build-src/ios/Runner/AppDelegate.swift
           grep -qF 'audioInterruptionEnded' build-src/ios/Runner/AppDelegate.swift
           grep -qF '<string>audio</string>' build-src/ios/Runner/Info.plist
+          # +161. 中断监听必须用当前嵌套类型 AVAudioSession.InterruptionType；+160 用的顶层旧名
+          # AVAudioSessionInterruptionType 在新版 Xcode 下不可用，直接导致 iOS 编译失败。
+          grep -qF 'let type = AVAudioSession.InterruptionType(rawValue: value)' build-src/ios/Runner/AppDelegate.swift
+          if grep -qF 'AVAudioSessionInterruptionType(rawValue' build-src/ios/Runner/AppDelegate.swift; then echo '中断类型又用回已废弃的顶层名，iOS 会编译失败'; exit 1; fi
           # 1b. 媒体请求用 Proxy=nil 的专用客户端，失败过的 host 才退回代理
           grep -qF 'mediaDirectOnce sync.Once' build-src/native/core/app_runtime.go
           grep -qF 'transport.Proxy = nil' build-src/native/core/network_media.go
