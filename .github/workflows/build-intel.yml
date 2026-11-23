@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+155-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+157-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+155' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+157' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -529,8 +529,9 @@ jobs:
           # 夜社搜索按保留栏目（tid=1/4）搜，不再整站把砍掉的分类倒出来
           grep -qF '/tid/' build-src/bundled-modules/yesheai/main.js
           grep -qF 'searchPath(keyword, index, SECTIONS[i])' build-src/bundled-modules/yesheai/main.js
-          # 站点部数变了要作废本次会话的「翻到底实测值」，否则顶栏永远不动
-          grep -qF '_listed.remove(source)' build-src/lib/explore_feed.dart
+          # 2.0.0+156 起反过来：站点部数变了**不能**丢掉实测值（那是真实部数），
+          # 只在后台重测。丢掉就会退回站点声明那个虚数（黄果视频 2205 / 实际 2118）。
+          if grep -qF '_dropListed' build-src/lib/explore_feed.dart; then echo '又在丢弃实测条数了'; exit 1; fi
           echo '---- +148 播放器 / 搜索 / 部数刷新 ----'
           # 横屏暂停也能收起播控；竖屏暂停收起后中央播放图标一起隐藏
           grep -qF 'bool get _locked =>' build-src/lib/ui/player/landscape_player_page.dart
@@ -589,7 +590,8 @@ jobs:
           if grep -qF 'final position = _raw + index + 1;' build-src/lib/drama_feed.dart; then echo '原始位置编号又回来了'; exit 1; fi
           grep -qF 'numberFrom: numbering ? 1 : null,' build-src/lib/ui/explore/explore_page.dart
           # 翻页失败只暂停自动翻页，绝不宣布「已经到底了」
-          if grep -v 'bool _hasMore' build-src/lib/drama_feed.dart | grep -qF '_hasMore = false'; then echo '翻页失败又让列表宣布到底了'; exit 1; fi
+          # （只看 _fetch 的失败分支：整条目录重走完一次性替换时置假是正常的）
+          if sed -n '/Future<void> _fetch(/,/^  }/p' build-src/lib/drama_feed.dart | grep -qF '_hasMore = false'; then echo '翻页失败又让列表宣布到底了'; exit 1; fi
           grep -qF 'if (_failedPages >= _autoRetryLimit) _autoPaused = true;' build-src/lib/drama_feed.dart
           grep -qF 'bool get stalled => _autoPaused;' build-src/lib/drama_feed.dart
           # 一页部分失败但拿到了作品：不甩错误、不挡后续翻页（野果 1,388 / 夜社 480 的元凶）
@@ -597,10 +599,10 @@ jobs:
           # 重试只重拉失败的那一页
           grep -qF 'Future<void> retry() async {' build-src/lib/drama_feed.dart
           grep -qF 'onPressed: feed.retry,' build-src/lib/ui/widgets/drama_grid.dart
-          # 切源/刷新作废实测值；切回来强制重拉列表，数字和作品一起更新
-          grep -qF '_listed.remove(id);' build-src/lib/explore_feed.dart
-          grep -qF 'void _dropListed(String source) {' build-src/lib/explore_feed.dart
-          grep -qF '_dropListed(source);' build-src/lib/explore_feed.dart
+          # 切源/刷新都不再作废实测值（2.0.0+156）：顶栏始终报真实部数，
+          # 声明变了只是触发后台重测；切回来照样强制重拉列表
+          if grep -qF '_dropListed' build-src/lib/explore_feed.dart; then echo '又在丢弃实测条数了'; exit 1; fi
+          grep -qF 'if (siteChanged) _wantsRecount();' build-src/lib/explore_feed.dart
           grep -qF 'final _resumed = <String>{};' build-src/lib/explore_feed.dart
           grep -qF '_resumed.remove(tab.id)' build-src/lib/explore_feed.dart
           # _observe 重建 facts 时不能把实测值洗掉，否则顶栏又掉回站点声明
@@ -664,7 +666,7 @@ jobs:
           echo '---- +152 刷新后三数自己更新、顶栏不跳 ----'
           # 2.0.0+154：刷新一律重测（不再只在「本次会话量过」时才补）
           grep -qF 'unawaited(_recount(catalog));' build-src/lib/explore_feed.dart
-          grep -qF 'Future<void> _recount(SourceCatalog catalog) async {' build-src/lib/explore_feed.dart
+          grep -qF 'Future<void> _recount(SourceCatalog catalog, {bool reload = false}) async {' build-src/lib/explore_feed.dart
           grep -qF 'static const _recountPages = 240;' build-src/lib/explore_feed.dart
           grep -qF '_noteListed(source, feed.items.length);' build-src/lib/explore_feed.dart
           # 刷新一开头不许再把顶栏清成站点声明（+151 的「数字在两个数之间变化」）
@@ -678,14 +680,30 @@ jobs:
           grep -qF '刷新过程中顶栏不会在旧数和新数之间来回跳' build-src/test/explore_feed_test.dart
           grep -qF '站点声明的总量涨了，顶栏立刻跟着涨' build-src/test/explore_feed_test.dart
 
-          echo '---- +152 总时长挪到选集面板右上角（+154 去掉转圈） ----'
+          echo '---- +157 拉到底之后顶栏跟着站点涨，列表不缩水 ----'
+          # 重走整条目录走副本，走完才一次性替换（不再 reload 清列表）
+          grep -qF 'Future<List<Drama>?> _rebuild(' build-src/lib/explore_feed.dart
+          grep -qF 'feed.replaceAll(rebuilt);' build-src/lib/explore_feed.dart
+          grep -qF 'void replaceAll(List<Drama> items) {' build-src/lib/drama_feed.dart
+          grep -qF 'static const _rebuildBudget = Duration(seconds: 300);' build-src/lib/explore_feed.dart
+          # 这条路上不许再 reload：那会把用户翻到底的 2,000 多张卡缩回第 1 页的 24 张
+          if sed -n '/Future<void> _recount(SourceCatalog catalog/,/^  }/p' build-src/lib/explore_feed.dart | grep -qF 'feed.reload(force: true)'; then echo '重测又在清列表了（+157 修的正是这个）'; exit 1; fi
+          # 重走和定时探头共用一条通道：探头必须让路，否则把重走的请求取消掉
+          grep -qF 'if (_recounting) return;' build-src/lib/explore_feed.dart
+          grep -qF 'Future<void> pulseNow() => _pulseFacts();' build-src/lib/explore_feed.dart
+          grep -qF '拉到底之后站点上新，顶栏跟着变大且列表不会缩水' build-src/test/explore_feed_test.dart
+          grep -qF '拉到底之后手动刷新，顶栏也跟着站点更新' build-src/test/explore_feed_test.dart
+          grep -qF 'replaceAll 一次性换掉列表，在途的那一页不会追加回来' build-src/test/drama_feed_test.dart
+
+          echo '---- +156 总时长改回 +151 的样子（标题下面单独一行） ----'
           grep -qF 'bool get counting =>' build-src/lib/episode_durations.dart
-          # 2.0.0+154 按反馈把「统计中」的转圈去掉了
+          # 2.0.0+154 去掉转圈，+156 连 alignment 那套也撤了：回到纯 Text
           if grep -qF 'CircularProgressIndicator' build-src/lib/episode_durations.dart; then echo '统计中还在转圈'; exit 1; fi
-          grep -qF 'this.alignment = MainAxisAlignment.end,' build-src/lib/episode_durations.dart
-          grep -qF 'Flexible(flex: 2, child: _durationText(details, m)),' build-src/lib/ui/detail/detail_page.dart
-          grep -qF '_episodeTitle(details, m, compact: compact)' build-src/lib/ui/detail/detail_page.dart
-          if grep -qF '_durationLine' build-src/lib/ui/detail/detail_page.dart; then echo '总时长又回到标题下面那一行了'; exit 1; fi
+          if grep -qF 'MainAxisAlignment alignment' build-src/lib/episode_durations.dart; then echo '时长标签又带回 alignment 了'; exit 1; fi
+          grep -qF 'Widget _durationLine(DramaDetails details, _Metrics m) => Padding(' build-src/lib/ui/detail/detail_page.dart
+          grep -qF '      _durationLine(details, m),' build-src/lib/ui/detail/detail_page.dart
+          if grep -qF 'compact' build-src/lib/ui/detail/detail_page.dart; then echo '选集标题还在为右上角时长做精简'; exit 1; fi
+          if grep -qF 'Flexible(flex: 2, child: _durationText(details, m))' build-src/lib/ui/detail/detail_page.dart; then echo '时长又挤到标题行右边了'; exit 1; fi
           grep -qF '统计中不再转圈，拿到数就换成总时长' build-src/test/detail_page_durations_test.dart
 
           echo '---- +152 追剧页下拉刷新 ----'
@@ -696,6 +714,29 @@ jobs:
           grep -qF 'onRefresh: ({bool force = true}) async =>' build-src/lib/ui/shell/app_shell.dart
           grep -qF 'await _followUpdater?.refresh(force: force) ?? false,' build-src/lib/ui/shell/app_shell.dart
           grep -qF '下拉刷新不管到期没到期' build-src/test/follow_updater_test.dart
+
+          echo '---- +156 底栏不再压住追剧选中按钮 ----'
+          grep -qF 'class ShellBottomInset extends InheritedWidget' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'ShellBottomInset.maybeOf(context)' build-src/lib/ui/widgets/shell_inset.dart
+          grep -qF 'void _measureTabBar() {' build-src/lib/ui/shell/app_shell.dart
+          grep -qF '_tabBarHeight ?? GlassTabBar.reservedHeight(context)' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'key: _tabBar,' build-src/lib/ui/shell/app_shell.dart
+          grep -qF '用外壳发布的底栏高度' build-src/test/shell_inset_test.dart
+
+          echo '---- +156 下载走本机直连 ----'
+          grep -qF 'type directNetworkKey struct{}' build-src/native/core/app_settings.go
+          grep -qF 'if request.Context().Value(directNetworkKey{}) != nil {' build-src/native/core/app_settings.go
+          grep -qF 'context.WithValue(requestCtx, directNetworkKey{}, true)' build-src/native/core/app_download_transfer.go
+          grep -qF '直连连不上' build-src/native/core/app_download_transfer.go
+
+          echo '---- +156 进站顶栏用实测部数，不退回虚高声明 ----'
+          if grep -qF '_dropListed' build-src/lib/explore_feed.dart; then echo '又在丢弃实测条数了'; exit 1; fi
+          grep -qF 'if (siteChanged) _wantsRecount();' build-src/lib/explore_feed.dart
+          grep -qF 'void _wantsRecount() {' build-src/lib/explore_feed.dart
+          grep -qF 'final rebuild = reload;' build-src/lib/explore_feed.dart
+          grep -qF 'final bottomed = _feed?.hasMore == false;' build-src/lib/explore_feed.dart
+          grep -qF '进站时声明和上次不同，顶栏仍然显示实测的部数' build-src/test/explore_feed_test.dart
+          grep -qF '站点声明的数变了，顶栏仍显示实测值' build-src/test/explore_feed_test.dart
 
           echo '---- +155 站源顺序：退出重进就是上次保存的顺序 ----'
           # 拖完立刻进内存（界面马上按新顺序），写盘丢后台队列后仍会落盘
@@ -724,7 +765,10 @@ jobs:
           grep -qF 'double get speed => _speed;' build-src/lib/download_overview.dart
           grep -qF 'void _measure() {' build-src/lib/download_overview.dart
           grep -qF 'String formatSpeed(double bytesPerSecond) {' build-src/lib/ui/downloads/download_actions.dart
-          grep -qF 'formatSpeed(widget.downloads.speed)' build-src/lib/ui/downloads/downloads_page.dart
+          # 2.0.0+156 按反馈挪到每张任务卡片上
+          grep -qF 'double speedOf(DownloadJob job)' build-src/lib/download_overview.dart
+          grep -qF 'final speedText = downloading && speed > 0 ? formatSpeed(speed) : null;' build-src/lib/ui/downloads/downloads_page.dart
+          if grep -qF 'formatSpeed(widget.downloads.speed)' build-src/lib/ui/downloads/downloads_page.dart; then echo '下载页标题行又显示汇总速度了'; exit 1; fi
 
           echo '---- +154 全部补齐分类隐藏作品 + 顶栏用实测数 ----'
           grep -qF 'int merge(Iterable<Drama> extra) {' build-src/lib/drama_feed.dart
