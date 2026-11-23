@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+151-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+153-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+151' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+153' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -598,7 +598,7 @@ jobs:
           # 切源/刷新作废实测值；切回来强制重拉列表，数字和作品一起更新
           grep -qF '_listed.remove(id);' build-src/lib/explore_feed.dart
           grep -qF 'void _dropListed(String source) {' build-src/lib/explore_feed.dart
-          grep -qF '_dropListed(catalog.source.id);' build-src/lib/explore_feed.dart
+          grep -qF '_dropListed(source);' build-src/lib/explore_feed.dart
           grep -qF 'final _resumed = <String>{};' build-src/lib/explore_feed.dart
           grep -qF '_resumed.remove(tab.id)' build-src/lib/explore_feed.dart
           # _observe 重建 facts 时不能把实测值洗掉，否则顶栏又掉回站点声明
@@ -628,7 +628,7 @@ jobs:
           # 面板上真的挂了这一行（电视布局塞在同一行里）
           grep -qF 'EpisodeDurations durationsOf(DramaDetails details)' build-src/lib/ui/detail/detail_page.dart
           grep -qF 'return EpisodeDurationLabel(stats: durationsOf(details), fontSize: m.summary);' build-src/lib/ui/detail/detail_page.dart
-          grep -qF '_durationLine(details, m),' build-src/lib/ui/detail/detail_page.dart
+          grep -qF '_durationText(details, m)' build-src/lib/ui/detail/detail_page.dart
           grep -qF '_durationText(details, m),' build-src/lib/ui/detail/detail_page.dart
           grep -qF "episode_durations.dart';" build-src/lib/ui/detail/detail_page.dart
           # 状态行抽成独立组件（EpisodeDurationLabel），跟着统计结果重建
@@ -659,6 +659,76 @@ jobs:
           grep -qF '集数变多后总时长跟着涨' build-src/test/detail_page_durations_test.dart
           grep -qF 'func TestDurationCacheRoundTrip' build-src/native/core/app_durations_test.go
           grep -qF 'func TestTrimNativeDurations' build-src/native/core/app_durations_test.go
+          echo '---- +152 刷新后三数自己更新、顶栏不跳 ----'
+          grep -qF 'if (measured) unawaited(_recount(catalog));' build-src/lib/explore_feed.dart
+          grep -qF 'Future<void> _recount(SourceCatalog catalog) async {' build-src/lib/explore_feed.dart
+          grep -qF 'static const _recountPages = 240;' build-src/lib/explore_feed.dart
+          grep -qF '_noteListed(source, feed.items.length);' build-src/lib/explore_feed.dart
+          # 刷新一开头不许再把顶栏清成站点声明（+151 的「数字在两个数之间变化」）
+          awk '/Future<void> refresh\(\) async \{/,/^  \}/' build-src/lib/explore_feed.dart > refresh.txt
+          drop_line=$(grep -n '_dropListed' refresh.txt | head -1 | cut -d: -f1 || true)
+          reload_line=$(grep -n 'reload(force: true)' refresh.txt | head -1 | cut -d: -f1 || true)
+          if [ -n "$drop_line" ] && [ "$drop_line" -lt "$reload_line" ]; then echo '刷新又在重拉第 1 页之前把顶栏清掉了'; exit 1; fi
+          if grep -qF 'sort(' refresh.txt; then echo '刷新函数里不该出现排序/拼接逻辑'; exit 1; fi
+          rm -f refresh.txt
+          grep -qF '刷新后自动补到末尾，站点上新不用先去别的分类绕一圈' build-src/test/explore_feed_test.dart
+          grep -qF '刷新过程中顶栏不会在旧数和新数之间来回跳' build-src/test/explore_feed_test.dart
+          grep -qF '站点声明的总量涨了，顶栏立刻跟着涨' build-src/test/explore_feed_test.dart
+
+          echo '---- +152 总时长挪到选集面板右上角 + 统计中动画 ----'
+          grep -qF 'bool get counting =>' build-src/lib/episode_durations.dart
+          grep -qF 'CircularProgressIndicator(strokeWidth: 1.6, color: color)' build-src/lib/episode_durations.dart
+          grep -qF 'this.alignment = MainAxisAlignment.end,' build-src/lib/episode_durations.dart
+          grep -qF 'Flexible(flex: 2, child: _durationText(details, m)),' build-src/lib/ui/detail/detail_page.dart
+          grep -qF '_episodeTitle(details, m, compact: compact)' build-src/lib/ui/detail/detail_page.dart
+          if grep -qF '_durationLine' build-src/lib/ui/detail/detail_page.dart; then echo '总时长又回到标题下面那一行了'; exit 1; fi
+          grep -qF '统计中显示转圈动画，拿到数就换成总时长' build-src/test/detail_page_durations_test.dart
+
+          echo '---- +152 追剧页下拉刷新 ----'
+          grep -qF 'Future<bool> refresh({' build-src/lib/follow_updater.dart
+          grep -qF 'return checked > 0;' build-src/lib/follow_updater.dart
+          grep -qF 'RefreshIndicator(key: _refreshKey, onRefresh: _refresh, child: child)' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'final Future<bool> Function({bool force})? onRefresh;' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'onRefresh: ({bool force = true}) async =>' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'await _followUpdater?.refresh(force: force) ?? false,' build-src/lib/ui/shell/app_shell.dart
+          grep -qF '下拉刷新不管到期没到期' build-src/test/follow_updater_test.dart
+
+          echo '---- +153 点底栏追剧也能刷新 ----'
+          grep -qF 'Future<bool> Function({bool force})? onRefresh;' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'RefreshIndicator(key: _refreshKey, onRefresh: _refresh, child: child)' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'void reselect() {' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'void checkOnEnter() {' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'unawaited(indicator.show());' build-src/lib/ui/follow/follow_page.dart
+          grep -qF 'DateTime? get lastCheckedAt {' build-src/lib/follow_updater.dart
+          grep -qF 'bool get running => _running;' build-src/lib/follow_updater.dart
+          grep -qF 'if (!force) {' build-src/lib/follow_updater.dart
+          grep -qF "if (tab == AppTab.follow) _follow.currentState?.checkOnEnter();" build-src/lib/ui/shell/app_shell.dart
+          grep -qF "if (tab == AppTab.follow) _follow.currentState?.reselect();" build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'bool _liftToTop(AppTab tab) {' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'key: _follow,' build-src/lib/ui/shell/app_shell.dart
+          grep -qF '切进追剧页：刚核对过就不重复请求' build-src/test/follow_updater_test.dart
+          grep -qF '切进追剧页：隔了 5 分钟以上就核对' build-src/test/follow_updater_test.dart
+
+          echo '---- +152 清理缓存先确认 ----'
+          grep -qF "title: const Text('清理缓存？')" build-src/lib/ui/settings/storage_view.dart
+          grep -qF 'if (confirmed != true || !mounted) return;' build-src/lib/ui/settings/storage_view.dart
+
+          echo '---- +152 iOS 后台下载 ----'
+          test -f build-src/lib/background_keepalive.dart
+          grep -qF "MethodChannel('duanju/background')" build-src/lib/background_keepalive.dart
+          grep -qF 'unawaited(BackgroundKeepAlive.hold());' build-src/lib/download_overview.dart
+          grep -qF 'unawaited(BackgroundKeepAlive.release());' build-src/lib/download_overview.dart
+          grep -qF 'BGTaskScheduler.shared.register(' build-src/ios/Runner/AppDelegate.swift
+          grep -qF 'beginBackgroundTask(' build-src/ios/Runner/AppDelegate.swift
+          grep -qF 'BGProcessingTaskRequest(' build-src/ios/Runner/AppDelegate.swift
+          grep -qF 'com.guoapp.phoenix2.downloads' build-src/ios/Runner/AppDelegate.swift
+          grep -qF '<string>com.guoapp.phoenix2.downloads</string>' build-src/ios/Runner/Info.plist
+          grep -qF '<string>processing</string>' build-src/ios/Runner/Info.plist
+          grep -qF 'UIBackgroundModes' build-src/ios/Runner/Info.plist
+          grep -qF 'BGTaskSchedulerPermittedIdentifiers' build-src/ios/Runner/Info.plist
+          # 旧的「必须保持前台」说法不许再出现
+          if grep -qF 'iOS 下载和媒体处理需要保持应用在前台' build-src/lib/ui/settings/settings_sections.dart; then echo '前台提示文案没改'; exit 1; fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
