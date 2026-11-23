@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+159-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+160-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+159' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+160' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -708,7 +708,7 @@ jobs:
           grep -qF 'bottom: badge != null && selected == null ? 8 : null,' build-src/lib/ui/widgets/drama_tile.dart
           # 3. 有已下载内容时优先落在【已下载】
           grep -qF 'Future<void> _chooseStartTab() async {' build-src/lib/ui/downloads/downloads_page.dart
-          grep -qF '_tabs.index = 1;' build-src/lib/ui/downloads/downloads_page.dart
+          grep -qF 'if (_tabs.index != 0) return;' build-src/lib/ui/downloads/downloads_page.dart
           # 4. 播放列表 / 密钥 / 分片一起直连，直连不通的 host 记 10 分钟
           grep -qF 'func withMediaDirect(ctx context.Context) context.Context {' build-src/native/core/app_settings.go
           grep -qF 'func mediaDirect(ctx context.Context) bool {' build-src/native/core/app_settings.go
@@ -730,6 +730,27 @@ jobs:
           grep -qF '重走目录时分类补齐也走探头道，不抢用户正在翻的那一页' build-src/test/explore_feed_test.dart
           # 5c. 手动刷新要能接管在途的那轮「往后补页」重测，否则重走根本没跑
           grep -qF '      if (!reload) return;' build-src/lib/explore_feed.dart
+
+          echo '---- +160 后台下载 / 代理流量 / 失败徽标 / 默认 tab ----'
+          # 1a. 静音必须在前台（收到 begin）就启动，不能等切后台那一刻
+          grep -qF '          self.startSilence()' build-src/ios/Runner/AppDelegate.swift
+          grep -qF 'AVAudioSession.interruptionNotification' build-src/ios/Runner/AppDelegate.swift
+          grep -qF 'audioInterruptionEnded' build-src/ios/Runner/AppDelegate.swift
+          grep -qF '<string>audio</string>' build-src/ios/Runner/Info.plist
+          # 1b. 媒体请求用 Proxy=nil 的专用客户端，失败过的 host 才退回代理
+          grep -qF 'mediaDirectOnce sync.Once' build-src/native/core/app_runtime.go
+          grep -qF 'transport.Proxy = nil' build-src/native/core/network_media.go
+          grep -qF 'client = d.noProxyMediaClient()' build-src/native/core/network_media.go
+          grep -qF 'TestNoProxyMediaClientNeverUsesProxy' build-src/native/core/network_media_direct_test.go
+          # 2. 失败集显示感叹号
+          grep -qF "if (failed > 0) return '!';" build-src/lib/download_overview.dart
+          grep -qF 'int get failed =>' build-src/lib/download_overview.dart
+          grep -qF 'final label = downloadBadgeLabel(failed: failed, active: count);' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'failed jobs put an exclamation mark on the mine tab' build-src/test/download_overview_test.dart
+          # 3. 下载中 / 已下载都有内容时留在下载中
+          grep -qF 'int startDownloadsTab(Iterable<DownloadJob> jobs) =>' build-src/lib/download_collections.dart
+          grep -qF '_tabs.index = startDownloadsTab(widget.downloads.jobs);' build-src/lib/ui/downloads/downloads_page.dart
+          grep -qF 'start tab prefers pending when both sides have content' build-src/test/download_collections_test.dart
 
           echo '---- +156 总时长改回 +151 的样子（标题下面单独一行） ----'
           grep -qF 'bool get counting =>' build-src/lib/episode_durations.dart
