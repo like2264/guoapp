@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+163-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+164-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+163' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+164' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -797,7 +797,7 @@ jobs:
           grep -qF 'if (siteChanged) _wantsRecount();' build-src/lib/explore_feed.dart
           grep -qF 'void _wantsRecount() {' build-src/lib/explore_feed.dart
           grep -qF 'final rebuild = reload;' build-src/lib/explore_feed.dart
-          grep -qF 'final bottomed = _feed?.hasMore == false;' build-src/lib/explore_feed.dart
+          grep -qF 'unawaited(_recount(catalog, reload: true));' build-src/lib/explore_feed.dart
           grep -qF '进站时声明和上次不同，顶栏仍然显示实测的部数' build-src/test/explore_feed_test.dart
           grep -qF '站点声明的数变了，顶栏仍显示实测值' build-src/test/explore_feed_test.dart
 
@@ -913,7 +913,7 @@ jobs:
           grep -qF "lane: '-probe-\${i % lanes}'" build-src/lib/explore_feed.dart
           grep -qF 'shallow: true,' build-src/lib/explore_feed.dart
           grep -qF 'bool shallow = false,' build-src/lib/explore_feed.dart
-          grep -qF 'unawaited(_recount(catalog, reload: bottomed || siteChanged));' build-src/lib/explore_feed.dart
+          grep -qF 'unawaited(_recount(catalog, reload: true));' build-src/lib/explore_feed.dart
 
           echo '---- +163 自检 ----'
           # 1. 长按后补发的 tap 被吞掉，不再误退多选
@@ -925,13 +925,23 @@ jobs:
           # 2. 底栏照视频重做：高透明 + 跨格大椭圆 + 彩虹描边
           grep -qF 'sigmaX: 1.2,' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'final (capLeft, capWidth) = _capsuleRect(cell, baseLeft);' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'static const _rainbowEdge = <Color>[' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF '_rainbowEdge' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏彩虹填充没删干净'; exit 1; fi
           if grep -qF 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏还是 +162 的糊度'; exit 1; fi
           # 3. 隐藏作品补齐：无条件 restore + 分类深扫并发
           grep -qF '            restore: true,' build-src/lib/explore_feed.dart
           grep -qF "lane: concurrent ? '-sweep-\${i % lanes}-probe' : ''," build-src/lib/explore_feed.dart
           grep -qF 'final concurrent = into != null && !shallow;' build-src/lib/explore_feed.dart
           if grep -qF 'restore: _facts.listed > rebuilt.length,' build-src/lib/explore_feed.dart; then echo '隐藏作品补齐又被 12h 节流挡住'; exit 1; fi
+
+          echo '---- +164 自检 ----'
+          # 1. 追剧多选：下载后自动退出选中态
+          grep -qF '下载已经入队，自动退出多选态' build-src/lib/ui/follow/follow_page.dart
+          # 2. 底栏改回白色半透明滑块（彩虹填充已删，见 +163 段的反向断言）
+          grep -qF 'Colors.white.withValues(alpha: 0.58),' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 3. 手动刷新一律 rebuild；连刷不作废在途 rebuild
+          grep -qF 'unawaited(_recount(catalog, reload: true));' build-src/lib/explore_feed.dart
+          grep -qF 'bool _rebuilding = false;' build-src/lib/explore_feed.dart
+          grep -qF 'if (reload && _rebuilding && _catalog == catalog) return;' build-src/lib/explore_feed.dart
 
       - uses: actions/setup-python@v5
         with:
