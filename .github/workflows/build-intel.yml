@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+166-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+167-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+166' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+167' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -937,7 +937,7 @@ jobs:
           # 1. 追剧多选：下载后自动退出选中态
           grep -qF '下载已经入队，自动退出多选态' build-src/lib/ui/follow/follow_page.dart
           # 2. 底栏改回白色半透明滑块（彩虹填充已删，见 +163 段的反向断言）
-          grep -qF 'Colors.white.withValues(alpha: 0.58),' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'Colors.white.withValues(alpha: 0.60),' build-src/lib/ui/widgets/glass_tab_bar.dart
           # 3. 手动刷新一律 rebuild；连刷不作废在途 rebuild
           grep -qF 'unawaited(_recount(catalog, reload: true));' build-src/lib/explore_feed.dart
           grep -qF 'bool _rebuilding = false;' build-src/lib/explore_feed.dart
@@ -951,16 +951,16 @@ jobs:
           if grep -qF 'cell - _drag' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又被拉成长条了'; exit 1; fi
           # 2. 按住放大并溢出底栏 + 图标文字同步放大
           grep -qF 'bool _pressed = false;' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final grow = _pressed && !_dragging ? 1.55 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF 'final grow =' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又加回放大逻辑了'; exit 1; fi
           grep -qF 'clipBehavior: Clip.none,' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final scale = selected && pressed ? 1.10 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF 'final scale = selected && pressed' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '图标又跟着放大了'; exit 1; fi
           grep -qF 'onTapDown: (_) => _pressDown(),' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'onTapUp: (_) => _pressUp(),' build-src/lib/ui/widgets/glass_tab_bar.dart
-          # 3. 四周淡淡彩虹光晕（新色表 _haloColors，不是整块彩虹填充）
-          grep -qF 'static const _haloColors = <Color>[' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 3. +167 已去彩虹光晕（iBox 极简），此处反向确认没残留
+          if grep -qF '_haloColors' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '彩虹光晕没删干净'; exit 1; fi
           grep -qF 'AnimatedContainer(' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'alpha: _pressed ? 0.30 : 0.13,' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF '_haloColors[4].withValues(' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF 'alpha: _pressed ? 0.30 : 0.13,' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '光晕柔光没删干净'; exit 1; fi
+          grep -qF 'Colors.black.withValues(alpha: 0.058)' build-src/lib/ui/widgets/glass_tab_bar.dart
 
           echo '---- +166 自检 ----'
           # 1. 布局塌陷修复：Stack 外层补回固定高度约束
@@ -969,16 +969,29 @@ jobs:
           # 2. 长条 pill：圆角恒为高度一半，按住横向放大 1.55、纵向只加 6
           grep -qF 'final capRadius = capH / 2;' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'BorderRadius.circular(capRadius),' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final grow = _pressed && !_dragging ? 1.55 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
-          # 3. 水球动效：拖动速度驱动横拉纵压，松手归零
-          grep -qF 'double _squash = 0;' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final squash = _dragging ? _squash : 0.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final capW = capWidth * grow * (1 + squash * 0.6);' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final capH = (baseH + holdLift * 0.5) * (1 - squash * 0.4);' build-src/lib/ui/widgets/glass_tab_bar.dart
-          # 4. 边框彩色辉光跟随胶囊滑动
+          if grep -qF 'final grow =' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又加回放大逻辑了'; exit 1; fi
+          # 3. +167 已去水球动效与按住放大（iBox 极简），反向确认没残留
+          if grep -qF '_squash' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '水球动效没删干净'; exit 1; fi
+          if grep -qF 'holdLift' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '按住放大溢出没删干净'; exit 1; fi
+          if grep -qF 'BorderRadius.circular(28)' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又变回方角了'; exit 1; fi
+          # 4. pill 缩到比一格小（iBox 尺寸）
+          grep -qF 'final capW = capWidth * 0.88;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final capH = baseH - 14;' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'left: capX,' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'width: capW,' build-src/lib/ui/widgets/glass_tab_bar.dart
-          if grep -qF 'BorderRadius.circular(28)' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又变回方角了'; exit 1; fi
+
+          echo '---- +167 自检 ----'
+          # 完全照 iBox 收敛：极简通透，去光晕/去放大/去水球
+          grep -qF 'final capH = baseH - 14;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final capW = capWidth * 0.88;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final capX = capLeft + (capWidth - capW) / 2;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final capY = GlassTabBar._pad + (baseH - capH) / 2;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'alpha: _pressed ? 0.52 : 0.42,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF '_haloColors' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '还带彩虹光晕'; exit 1; fi
+          if grep -qF '_squash' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '还带水球动效'; exit 1; fi
+          if grep -qF 'final grow =' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '还会按住放大'; exit 1; fi
+          if grep -qF 'final scale = selected && pressed' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '图标还会放大'; exit 1; fi
+          if grep -qF 'left: capX,' build-src/lib/ui/widgets/glass_tab_bar.dart && grep -qF 'height: 2,' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '边框光晕条还在'; exit 1; fi
 
       - uses: actions/setup-python@v5
         with:
