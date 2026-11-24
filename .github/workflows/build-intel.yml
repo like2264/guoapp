@@ -49,7 +49,7 @@ jobs:
           grep -n 'onHorizontalDragStart' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n '_dragEnd' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'HapticFeedback.selectionClick' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n 'sigmaX: 0.8' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart
           if grep -q '_trail' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏残影没删干净'; exit 1; fi
           if grep -q '_Dividers' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏分隔线没删干净'; exit 1; fi
           grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
@@ -211,7 +211,7 @@ jobs:
           grep -q '"version": "1.1.6"' build-src/bundled-modules/youzidj/manifest.json
           grep -q '"version": "1.0.3"' build-src/bundled-modules/crdj/manifest.json
           grep -q '"version": "1.0.9"' build-src/bundled-modules/yesheai/manifest.json
-          grep -q '"version": "1.0.4"' build-src/bundled-modules/huangguoai/manifest.json
+          grep -q '"version": "1.0.5"' build-src/bundled-modules/huangguoai/manifest.json
           grep -q '"version": "1.0.4"' build-src/bundled-modules/heitao/manifest.json
           # 1.0.5 的末页封顶会按第 1 页学到的页数砍掉真实末页，已回退，别再回来。
           if grep -qF 'function knownPageCount' build-src/bundled-modules/heitao/main.js; then echo '黑桃又上了末页封顶 1.0.5'; exit 1; fi
@@ -573,7 +573,7 @@ jobs:
           grep -qF 'if (page === pages[type] && items.length > 0) {' build-src/bundled-modules/yesheai/main.js
           cmp build-src/bundled-modules/yesheai/main.js build-src/native/core/bundled/yesheai/main.js
           # 顶栏探头单独一条通道：跟列表翻页共用 session 会互相取消（context canceled）
-          grep -qF 'lane: probe ? ' build-src/lib/source_catalog.dart
+          grep -qF 'lane: lane.isNotEmpty' build-src/lib/source_catalog.dart
           grep -qF 'bool probe = false,' build-src/lib/source_catalog.dart
           grep -qF 'catalog-$source$lane' build-src/lib/core_bridge.dart
           grep -qF 'String lane = ' build-src/lib/core_bridge.dart
