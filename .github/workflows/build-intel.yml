@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+164-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+165-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+164' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+165' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -942,6 +942,25 @@ jobs:
           grep -qF 'unawaited(_recount(catalog, reload: true));' build-src/lib/explore_feed.dart
           grep -qF 'bool _rebuilding = false;' build-src/lib/explore_feed.dart
           grep -qF 'if (reload && _rebuilding && _catalog == catalog) return;' build-src/lib/explore_feed.dart
+
+          echo '---- +165 自检 ----'
+          # 1. 胶囊恒宽一格、跟手平移：不再拉面条横跨多格
+          grep -qF 'final left = _dragging ? baseLeft + _drag : baseLeft;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'return (left, cell);' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF 'cell + _drag' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又被拉成长条了'; exit 1; fi
+          if grep -qF 'cell - _drag' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又被拉成长条了'; exit 1; fi
+          # 2. 按住放大并溢出底栏 + 图标文字同步放大
+          grep -qF 'bool _pressed = false;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final grow = _pressed ? 1.16 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'clipBehavior: Clip.none,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final scale = selected && pressed ? 1.10 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'onTapDown: (_) => _pressDown(),' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'onTapUp: (_) => _pressUp(),' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 3. 四周淡淡彩虹光晕（新色表 _haloColors，不是整块彩虹填充）
+          grep -qF 'static const _haloColors = <Color>[' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'AnimatedContainer(' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'alpha: _pressed ? 0.30 : 0.13,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF '_haloColors[4].withValues(' build-src/lib/ui/widgets/glass_tab_bar.dart
 
       - uses: actions/setup-python@v5
         with:
