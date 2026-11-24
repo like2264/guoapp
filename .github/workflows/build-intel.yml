@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+161-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+162-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+161' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+162' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -882,6 +882,35 @@ jobs:
           grep -qF 'BGTaskSchedulerPermittedIdentifiers' build-src/ios/Runner/Info.plist
           # 旧的「必须保持前台」说法不许再出现
           if grep -qF 'iOS 下载和媒体处理需要保持应用在前台' build-src/lib/ui/settings/settings_sections.dart; then echo '前台提示文案没改'; exit 1; fi
+
+          echo '---- +162 自检 ----'
+          # 1. 黄果AI 改直连底层 REST（edge 包装接口已停用）
+          grep -qF 'const address = siteBaseUrl + path;' build-src/bundled-modules/huangguoai/main.js
+          grep -qF '"version": "1.0.5"' build-src/bundled-modules/huangguoai/manifest.json
+          grep -qF '"version": "1.0.5"' build-src/native/core/bundled/huangguoai/manifest.json
+          if cmp -s build-src/bundled-modules/huangguoai/main.js build-src/native/core/bundled/huangguoai/main.js; then :; else echo '黄果AI 两副本不一致'; exit 1; fi
+          # 2. 备份带上站源顺序 / 资源设置（代理+下载）
+          grep -qF "'resourceSettings': resourceSettings" build-src/lib/local_store.dart
+          grep -qF "'sourceOrder': _list(settings['sourceOrder'])" build-src/lib/local_store.dart
+          grep -qF 'ResourceSettings? resourceSettings' build-src/lib/ui/settings/backup_actions.dart
+          grep -qF "repository!.saveResourceSettings(" build-src/lib/ui/settings/backup_actions.dart
+          # 3. 竖屏按钮换位：全屏在左、选集在右
+          grep -qF "key: const ValueKey('fullscreen')" build-src/lib/ui/player/portrait_player_page.dart
+          grep -qF 'left: widget.onFullscreen == null ? 68 : 116,' build-src/lib/ui/player/portrait_player_page.dart
+          # 4. 切后台不暂停（只 detached 暂停）
+          grep -qF 'if (state == AppLifecycleState.detached) {' build-src/lib/main.dart
+          if grep -qF 'AppLifecycleState.paused ||' build-src/lib/main.dart; then echo '切后台又被 pauseAll 了'; exit 1; fi
+          # 5. 下载按剧分组
+          grep -qF 'class _DramaJobGroup extends StatelessWidget' build-src/lib/ui/downloads/downloads_page.dart
+          grep -qF 'final _expandedGroups = <String>{};' build-src/lib/ui/downloads/downloads_page.dart
+          # 6. 底栏磨砂 + 果冻动效
+          grep -qF 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF '_jellyCurve = Curves.elasticOut' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 7. 三数并发重走 + 分类浅层补新
+          grep -qF "lane: '-probe-\${i % lanes}'" build-src/lib/explore_feed.dart
+          grep -qF 'shallow: true,' build-src/lib/explore_feed.dart
+          grep -qF 'bool shallow = false,' build-src/lib/explore_feed.dart
+          grep -qF 'unawaited(_recount(catalog, reload: bottomed || siteChanged));' build-src/lib/explore_feed.dart
 
       - uses: actions/setup-python@v5
         with:
