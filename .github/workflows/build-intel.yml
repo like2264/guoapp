@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+167-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+168-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+167' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+168' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -993,6 +993,21 @@ jobs:
           if grep -qF 'final scale = selected && pressed' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '图标还会放大'; exit 1; fi
           if grep -qF 'left: capX,' build-src/lib/ui/widgets/glass_tab_bar.dart && grep -qF 'height: 2,' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '边框光晕条还在'; exit 1; fi
 
+          echo '---- +168 自检 ----'
+          # iOS 26+ 底栏换系统原生 UITabBar（真 Liquid Glass），旧系统保留手绘回退
+          grep -qF 'native_liquid_glass: ^0.3.1' build-src/pubspec.yaml
+          grep -qF "import 'package:native_liquid_glass/native_liquid_glass.dart';" build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'glass && NativeLiquidGlassUtils.supportsLiquidGlass' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'LiquidGlassTabBar(' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'NativeLiquidGlassIcon.sfSymbol(_sfSymbol(tab))' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'iosBadgeValue: tab == AppTab.mine ? badge : null,' build-src/lib/ui/shell/app_shell.dart
+          grep -qF 'String _sfSymbol(AppTab tab)' build-src/lib/ui/shell/app_shell.dart
+          grep -qF "AppTab.explore => 'compass.fill'," build-src/lib/ui/shell/app_shell.dart
+          # 低于 26 的系统仍要能回退到手绘胶囊，不能把老系统底栏弄丢
+          if ! grep -qF '? GlassTabBar(' build-src/lib/ui/shell/app_shell.dart; then echo '手绘底栏回退丢了'; exit 1; fi
+          # 构建必须切 Xcode 26 SDK，否则原生玻璃材质编译不过
+          grep -qF 'ls -d /Applications/Xcode_26*.app' .github/workflows/build-intel.yml
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -1012,6 +1027,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # iOS 26+ 的原生 Liquid Glass 材质（UIGlassEffect / glassEffect）需要
+          # Xcode 26 SDK 才能编译；macos-15 镜像默认是 16.4，必须显式切过去。
+          # 切完 xcrun --sdk iphoneos 会指向新 SDK，Go 交叉编译 target 仍是
+          # arm64-apple-ios15.1（新 SDK 向下兼容旧 target，不影响最低系统版本）。
+          XCODE26=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE26" ]; then
+            sudo xcode-select -s "$XCODE26"
+          else
+            echo '未找到 Xcode 26，原生玻璃底栏无法编译'; exit 1
+          fi
           xcode-select -p
           xcodebuild -version
           if ! command -v pod >/dev/null 2>&1; then
