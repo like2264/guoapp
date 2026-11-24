@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+162-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+163-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+162' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+163' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -49,7 +49,7 @@ jobs:
           grep -n 'onHorizontalDragStart' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n '_dragEnd' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -n 'HapticFeedback.selectionClick' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -n 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -n 'sigmaX: 1.2,' build-src/lib/ui/widgets/glass_tab_bar.dart
           if grep -q '_trail' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏残影没删干净'; exit 1; fi
           if grep -q '_Dividers' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏分隔线没删干净'; exit 1; fi
           grep -n 'class _ScrollRail' build-src/lib/ui/explore/explore_page.dart
@@ -725,7 +725,10 @@ jobs:
           #     节流挡住、落盘的条数是替换后那份（不是旧列表的 24）
           grep -qF '              probe: into != null,' build-src/lib/explore_feed.dart
           grep -qF '    bool restore = false,' build-src/lib/explore_feed.dart
-          grep -qF '            restore: _facts.listed > rebuilt.length,' build-src/lib/explore_feed.dart
+          # 2.0.0+163：rebuild 后只要实测比声明少就无条件深扫（旧写法
+          # `restore: _facts.listed > rebuilt.length` 在拉到底后三数已降时失效，
+          # 导致隐藏的 8 部被 12h 节流挡住、要等下次进站才补）。
+          grep -qF '            restore: true,' build-src/lib/explore_feed.dart
           grep -qF '      await _persistListed(source, into?.length ?? feed.items.length);' build-src/lib/explore_feed.dart
           grep -qF '重走目录时分类补齐也走探头道，不抢用户正在翻的那一页' build-src/test/explore_feed_test.dart
           # 5c. 手动刷新要能接管在途的那轮「往后补页」重测，否则重走根本没跑
@@ -904,13 +907,31 @@ jobs:
           grep -qF 'class _DramaJobGroup extends StatelessWidget' build-src/lib/ui/downloads/downloads_page.dart
           grep -qF 'final _expandedGroups = <String>{};' build-src/lib/ui/downloads/downloads_page.dart
           # 6. 底栏磨砂 + 果冻动效
-          grep -qF 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'sigmaX: 1.2,' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF '_jellyCurve = Curves.elasticOut' build-src/lib/ui/widgets/glass_tab_bar.dart
           # 7. 三数并发重走 + 分类浅层补新
           grep -qF "lane: '-probe-\${i % lanes}'" build-src/lib/explore_feed.dart
           grep -qF 'shallow: true,' build-src/lib/explore_feed.dart
           grep -qF 'bool shallow = false,' build-src/lib/explore_feed.dart
           grep -qF 'unawaited(_recount(catalog, reload: bottomed || siteChanged));' build-src/lib/explore_feed.dart
+
+          echo '---- +163 自检 ----'
+          # 1. 长按后补发的 tap 被吞掉，不再误退多选
+          grep -qF 'DateTime? _lastLongPressAt;' build-src/lib/ui/widgets/drama_tile.dart
+          grep -qF 'bool get _tapFollowsLongPress' build-src/lib/ui/widgets/drama_tile.dart
+          grep -qF 'onTap: _handleTap,' build-src/lib/ui/widgets/drama_tile.dart
+          grep -qF 'onLongPress: _handleLongPress,' build-src/lib/ui/widgets/drama_tile.dart
+          grep -qF '长按进入多选后补发的 tap 不会误触普通点击' build-src/test/drama_tile_actions_test.dart
+          # 2. 底栏照视频重做：高透明 + 跨格大椭圆 + 彩虹描边
+          grep -qF 'sigmaX: 1.2,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final (capLeft, capWidth) = _capsuleRect(cell, baseLeft);' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'static const _rainbowEdge = <Color>[' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏还是 +162 的糊度'; exit 1; fi
+          # 3. 隐藏作品补齐：无条件 restore + 分类深扫并发
+          grep -qF '            restore: true,' build-src/lib/explore_feed.dart
+          grep -qF "lane: concurrent ? '-sweep-\${i % lanes}-probe' : ''," build-src/lib/explore_feed.dart
+          grep -qF 'final concurrent = into != null && !shallow;' build-src/lib/explore_feed.dart
+          if grep -qF 'restore: _facts.listed > rebuilt.length,' build-src/lib/explore_feed.dart; then echo '隐藏作品补齐又被 12h 节流挡住'; exit 1; fi
 
       - uses: actions/setup-python@v5
         with:
