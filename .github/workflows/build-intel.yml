@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+165-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+166-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+165' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+166' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -951,7 +951,7 @@ jobs:
           if grep -qF 'cell - _drag' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又被拉成长条了'; exit 1; fi
           # 2. 按住放大并溢出底栏 + 图标文字同步放大
           grep -qF 'bool _pressed = false;' build-src/lib/ui/widgets/glass_tab_bar.dart
-          grep -qF 'final grow = _pressed ? 1.16 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final grow = _pressed && !_dragging ? 1.55 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'clipBehavior: Clip.none,' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'final scale = selected && pressed ? 1.10 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'onTapDown: (_) => _pressDown(),' build-src/lib/ui/widgets/glass_tab_bar.dart
@@ -961,6 +961,24 @@ jobs:
           grep -qF 'AnimatedContainer(' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF 'alpha: _pressed ? 0.30 : 0.13,' build-src/lib/ui/widgets/glass_tab_bar.dart
           grep -qF '_haloColors[4].withValues(' build-src/lib/ui/widgets/glass_tab_bar.dart
+
+          echo '---- +166 自检 ----'
+          # 1. 布局塌陷修复：Stack 外层补回固定高度约束
+          grep -qF 'child: SizedBox(' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'height: GlassTabBar.barHeight,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 2. 长条 pill：圆角恒为高度一半，按住横向放大 1.55、纵向只加 6
+          grep -qF 'final capRadius = capH / 2;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'BorderRadius.circular(capRadius),' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final grow = _pressed && !_dragging ? 1.55 : 1.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 3. 水球动效：拖动速度驱动横拉纵压，松手归零
+          grep -qF 'double _squash = 0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final squash = _dragging ? _squash : 0.0;' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final capW = capWidth * grow * (1 + squash * 0.6);' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'final capH = (baseH + holdLift * 0.5) * (1 - squash * 0.4);' build-src/lib/ui/widgets/glass_tab_bar.dart
+          # 4. 边框彩色辉光跟随胶囊滑动
+          grep -qF 'left: capX,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          grep -qF 'width: capW,' build-src/lib/ui/widgets/glass_tab_bar.dart
+          if grep -qF 'BorderRadius.circular(28)' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '胶囊又变回方角了'; exit 1; fi
 
       - uses: actions/setup-python@v5
         with:
