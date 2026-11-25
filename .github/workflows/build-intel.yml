@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+177-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+178-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+177' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+178' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -631,7 +631,7 @@ jobs:
           grep -qF 'if (found == 0 && queue.isNotEmpty) {' build-src/lib/episode_durations.dart
           # 面板上真的挂了这一行（电视布局塞在同一行里）
           grep -qF 'EpisodeDurations durationsOf(DramaDetails details)' build-src/lib/ui/detail/detail_page.dart
-          grep -qF 'EpisodeDurationLabel(' build-src/lib/ui/detail/detail_page.dart
+          grep -qF 'return EpisodeDurationLabel(stats: durationsOf(details), fontSize: m.summary);' build-src/lib/ui/detail/detail_page.dart
           grep -qF '_durationText(details, m)' build-src/lib/ui/detail/detail_page.dart
           grep -qF '_durationText(details, m),' build-src/lib/ui/detail/detail_page.dart
           grep -qF "episode_durations.dart';" build-src/lib/ui/detail/detail_page.dart
@@ -642,9 +642,8 @@ jobs:
           test -f build-src/native/core/app_durations.go
           grep -qF 'func (engine *nativeEngine) nativeChapterDurations' build-src/native/core/app_durations.go
           grep -qF 'nativeDurationFile' build-src/native/core/app_durations.go
-          grep -qF 'nativeDurationWorkers' build-src/native/core/app_durations.go
-          grep -qF '= 3' build-src/native/core/app_durations.go
-          grep -qF 'func (engine *nativeEngine) probeChapterFacts' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationWorkers    = 3' build-src/native/core/app_durations.go
+          grep -qF 'func (engine *nativeEngine) probeChapterDuration' build-src/native/core/app_durations.go
           grep -qF 'func (engine *nativeEngine) variantPlaylistDuration' build-src/native/core/app_durations.go
           grep -qF 'case "chapterDurations":' build-src/native/core/app_runtime.go
           grep -qF '"chapterDurations"' build-src/native/core/app_build.go
@@ -1028,119 +1027,6 @@ jobs:
           # 纯黑深色模式已移除
           if grep -qF "title: '纯黑深色模式'" build-src/lib/ui/settings/appearance_settings.dart; then echo '纯黑开关还在'; exit 1; fi
           grep -qF 'bool get pureBlack => false;' build-src/lib/local_store.dart
-
-          echo '---- +171 自检 ----'
-          # 每集画质跟时长一次解析拿到，Dart 侧一张表带出来
-          grep -qF 'Future<Map<String, ChapterFacts>> chapterFacts(' build-src/lib/core_bridge.dart
-          if grep -qF 'chapterDurations(' build-src/lib/core_bridge.dart; then echo '旧时长接口还在'; exit 1; fi
-          grep -qF 'String qualityLabel(String episodeId)' build-src/lib/episode_durations.dart
-          grep -qF 'facts.qualityHeight' build-src/lib/episode_durations.dart
-          grep -qF 'quality: stats.qualityLabel(episode.id),' build-src/lib/ui/detail/detail_page.dart
-          # 原生从播放列表 RESOLUTION 取最高档；缓存升版补记老剧的画质
-          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
-          grep -qF 'nativeMaxPlaylistHeight(media)' build-src/native/core/app_durations.go
-          grep -qF 'json:"quality"' build-src/native/core/app_durations.go
-          grep -qF 'Qualities map[string]int64' build-src/native/core/app_durations.go
-
-          echo '---- +172 自检 ----'
-          # 画质文字从圆角边挪进格子，别再被裁掉
-          grep -qF '玻璃格子圆角有 18px' build-src/lib/ui/detail/detail_page.dart
-          grep -qF 'left: 8,' build-src/lib/ui/detail/detail_page.dart
-          grep -qF 'bottom: 6,' build-src/lib/ui/detail/detail_page.dart
-          # 站点没写 RESOLUTION 时补量真实分片：TS SPS / MP4 tkhd / URL 明确档位
-          test -f build-src/native/core/app_media_probe.go
-          grep -qF 'func (engine *nativeEngine) probeMediaHeight' build-src/native/core/app_media_probe.go
-          grep -qF 'func nativeH264SPSResolution' build-src/native/core/app_media_probe.go
-          grep -qF 'func nativeMP4Resolution' build-src/native/core/app_media_probe.go
-          grep -qF 'func nativeURLQualityHint' build-src/native/core/app_media_probe.go
-          # +175 起主链路不再做字节探测（真值靠播放回写），断言它不在
-          if grep -qF 'height = engine.probeMediaHeight(ctx, media)' build-src/native/core/app_durations.go; then echo '字节探测又回到主链路了'; exit 1; fi
-          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
-          test -f build-src/native/core/app_media_probe_test.go
-          grep -qF 'func TestH264SPSResolution' build-src/native/core/app_media_probe_test.go
-          grep -qF 'func TestMP4Resolution' build-src/native/core/app_media_probe_test.go
-
-          echo '---- +173 自检 ----'
-          # 加密分片探测：#EXT-X-KEY 取密钥 + IV 解密后再量分辨率
-          grep -qF 'func nativeMasterPlaylistHeight' build-src/native/core/app_media_probe.go
-          grep -qF 'func nativePlaylistKey' build-src/native/core/app_media_probe.go
-          grep -qF 'func nativeDecryptSegment' build-src/native/core/app_media_probe.go
-          grep -qF 'func (engine *nativeEngine) fetchProbeKey' build-src/native/core/app_media_probe.go
-          grep -qF 'cipher.NewCBCDecrypter' build-src/native/core/app_media_probe.go
-          grep -qF 'if height := nativeMasterPlaylistHeight(data); height > 0' build-src/native/core/app_media_probe.go
-          grep -qF 'if len(key) == 16 {' build-src/native/core/app_media_probe.go
-          grep -qF 'crypto/aes' build-src/native/core/app_media_probe.go
-          grep -qF 'func TestDecryptSegment' build-src/native/core/app_media_probe_test.go
-          grep -qF 'func TestMasterPlaylistHeight' build-src/native/core/app_media_probe_test.go
-          grep -qF 'func TestPlaylistKey' build-src/native/core/app_media_probe_test.go
-          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
-
-          echo '---- +174 自检 ----'
-          # SPS 裁剪字段顺序修正：left, right / top, bottom
-          grep -qF 'left, right = reader.ue(), reader.ue()' build-src/native/core/app_media_probe.go
-          grep -qF 'top, bottom = reader.ue(), reader.ue()' build-src/native/core/app_media_probe.go
-          # 档位闸门：非标准档位一律丢弃，宁可不标也不标假的
-          grep -qF 'func nativeSanitizeHeight' build-src/native/core/app_media_probe.go
-          # +176 去掉 ±8 吸附闸门：只做范围校验，真档位 470/834 照实标
-          if grep -qF 'var nativeKnownHeights' build-src/native/core/app_media_probe.go; then echo '标准档闸门又回来了'; exit 1; fi
-          # +175 起主链路不再过闸门（闸门 ±8 会误杀 834/470 这类真档位）
-          if grep -qF 'nativeSanitizeHeight(height)' build-src/native/core/app_durations.go; then echo '闸门又回到主链路了'; exit 1; fi
-          grep -qF 'return nativeSanitizeHeight(int64(min(width, height)))' build-src/native/core/app_media_probe.go
-          grep -qF 'func TestSanitizeHeight' build-src/native/core/app_media_probe_test.go
-          # 冷却分支回填画质（+175 起统一走 qualityFor：真值优先、声明兜底）
-          grep -qF 'results[index].QualityHeight = qualityFor(chapter.ID)' build-src/native/core/app_durations.go
-          test "$(grep -cF 'results[index].QualityHeight = qualityFor' build-src/native/core/app_durations.go)" -ge 2
-
-          echo '---- +175 自检 ----'
-          # 画质改以播放器解码真值为准：新增 Decoded 缓存和 recordQuality 回写 action
-          grep -qF 'case "recordQuality":' build-src/native/core/app_runtime.go
-          grep -qF 'func (engine *nativeEngine) nativeRecordChapterQuality' build-src/native/core/app_durations.go
-          grep -qF 'Decoded map[string]int64' build-src/native/core/app_durations.go
-          grep -qF 'record.Decoded[input.Chapter.ID] = int64(input.Quality)' build-src/native/core/app_durations.go
-          grep -qF 'func TestRecordChapterQualityWins' build-src/native/core/app_durations_test.go
-          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
-          # 真值优先：读缓存时 Decoded 盖过站点声明；探测不再覆盖真值
-          grep -qF 'if decoded := record.Decoded[id]; decoded > 0' build-src/native/core/app_durations.go
-          grep -qF 'if record.Decoded[id] == 0' build-src/native/core/app_durations.go
-          # 主链路不再做字节探测/闸门（又慢又出假值，真值靠播放回写）
-          if grep -qF 'height = engine.probeMediaHeight(ctx, media)' build-src/native/core/app_durations.go; then echo '字节探测又回到主链路了'; exit 1; fi
-          # Dart：播放拿到 videoParams → 回写真值 → 返回详情页重拉画质标注
-          grep -qF "'action': 'recordQuality'" build-src/lib/core_bridge.dart
-          grep -qF 'Future<void> _recordDecodedQuality(Size size)' build-src/lib/playback_session.dart
-          grep -qF 'await repository.recordQuality(detail.drama, episode, height)' build-src/lib/playback_session.dart
-          grep -qF 'Future<void> refreshQualities()' build-src/lib/episode_durations.dart
-          grep -qF 'durationsOf(details).refreshQualities()' build-src/lib/ui/detail/detail_page.dart
-
-          echo '---- +176 自检 ----'
-          # 独立后台画质探测 action：不进播放页也能标注单路 m3u8 站
-          grep -qF 'case "probeQualities":' build-src/native/core/app_runtime.go
-          grep -qF 'func (engine *nativeEngine) nativeProbeQualities' build-src/native/core/app_durations.go
-          grep -qF 'func (engine *nativeEngine) probeQualityHeight' build-src/native/core/app_durations.go
-          grep -qF 'Probed map[string]int64' build-src/native/core/app_durations.go
-          grep -qF 'func TestProbeQualitiesPriority' build-src/native/core/app_durations_test.go
-          # 档位不再吸附标准档：只挡离谱假值，真裁剪档照实标
-          grep -qF 'if value < 320 || value > 4320' build-src/native/core/app_media_probe.go
-          grep -qF '470: 470, 834: 834' build-src/native/core/app_media_probe_test.go
-          # 优先级：Decoded > Qualities > Probed
-          grep -qF 'if declared := record.Qualities[id]; declared > 0' build-src/native/core/app_durations.go
-          grep -qF 'return record.Probed[id]' build-src/native/core/app_durations.go
-          # Dart：进详情页独立触发后台探测，不阻塞时长统计
-          grep -qF "'action': 'probeQualities'" build-src/lib/core_bridge.dart
-          grep -qF 'unawaited(_probeQualities(generation))' build-src/lib/episode_durations.dart
-          grep -qF 'Future<void> _probeQualities(int generation)' build-src/lib/episode_durations.dart
-
-          echo '---- +177 自检 ----'
-          # 画质探测失败冷却与时长统计分开，互不拖累
-          grep -qF 'ProbeMissed map[string]int64' build-src/native/core/app_durations.go
-          grep -qF 'if at, missed := record.ProbeMissed[id]' build-src/native/core/app_durations.go
-          grep -qF 'delete(record.ProbeMissed, id)' build-src/native/core/app_durations.go
-          grep -qF 'func TestProbeMissedIndependentOfDuration' build-src/native/core/app_durations_test.go
-          # 单集预算 5 秒、画质探测并发比时长多一路
-          grep -qF 'nativeProbeBudget+time.Second' build-src/native/core/app_durations.go
-          grep -qF 'min(nativeDurationWorkers+1, len(pending))' build-src/native/core/app_durations.go
-          # Dart 分批探测，避免整部剧一次调用撞超时
-          test "$(grep -cF 'final batch = queue.take(_batchSize).toList()' build-src/lib/episode_durations.dart)" -ge 2
-          grep -qF 'heights = await repository.probeQualities(drama, batch)' build-src/lib/episode_durations.dart
 
       - uses: actions/setup-python@v5
         with:
