@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+169-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+170-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+169' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+170' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1009,19 +1009,24 @@ jobs:
           grep -qF 'ls -d /Applications/Xcode_26*.app' .github/workflows/build-intel.yml
 
           echo '---- +169 自检 ----'
-          # iOS 26+：全 App 玻璃容器换系统原生 UIGlassEffect，手绘回退仍要在
-          grep -qF "import 'package:native_liquid_glass/native_liquid_glass.dart';" build-src/lib/ui/theme/glass.dart
-          grep -qF 'if (NativeLiquidGlassUtils.supportsLiquidGlass)' build-src/lib/ui/theme/glass.dart
-          grep -qF 'LiquidGlassContainer(' build-src/lib/ui/theme/glass.dart
-          grep -qF 'LiquidGlassConfig(' build-src/lib/ui/theme/glass.dart
-          grep -qF 'LiquidGlassBorder(' build-src/lib/ui/theme/glass.dart
+          # 手绘玻璃回退仍在（+170 回退原生容器后同样要求）
           grep -qF 'filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),' build-src/lib/ui/theme/glass.dart
-          # 「发现」图标改走 Material 图标栅格化，原生底栏不再丢图标
+          # 「发现」图标走 Material 图标栅格化，原生底栏不再丢图标
           grep -qF 'NativeLiquidGlassIcon.iconData(tab.icon)' build-src/lib/ui/shell/app_shell.dart
           grep -qF 'NativeLiquidGlassIcon.iconData(tab.selectedIcon)' build-src/lib/ui/shell/app_shell.dart
-          # 外观页不再提供 Liquid Glass 开关，玻璃外观恒开（纯黑仍让位）
+          # 外观页不再提供 Liquid Glass 开关
           if grep -qF "title: 'Liquid Glass 外观'" build-src/lib/ui/settings/appearance_settings.dart; then echo '外观开关还在'; exit 1; fi
           grep -qF 'bool get liquidGlass => !pureBlack;' build-src/lib/local_store.dart
+
+          echo '---- +170 自检 ----'
+          # 深色发灰 / 内容溢出框外 / 详情页闪白线：全 App 原生玻璃容器撤掉，回手绘
+          if grep -qF 'LiquidGlassContainer(' build-src/lib/ui/theme/glass.dart; then echo '原生玻璃容器又回来了'; exit 1; fi
+          if grep -qF 'NativeLiquidGlassUtils.supportsLiquidGlass' build-src/lib/ui/theme/glass.dart; then echo '玻璃容器又走原生通道了'; exit 1; fi
+          # 发现图标给 24pt，别再撑满整格
+          grep -qF 'iconSize: tab == AppTab.explore ? 24 : null,' build-src/lib/ui/shell/app_shell.dart
+          # 纯黑深色模式已移除
+          if grep -qF "title: '纯黑深色模式'" build-src/lib/ui/settings/appearance_settings.dart; then echo '纯黑开关还在'; exit 1; fi
+          grep -qF 'bool get pureBlack => false;' build-src/lib/local_store.dart
 
       - uses: actions/setup-python@v5
         with:
