@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+173-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+174-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+173' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+174' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1037,7 +1037,7 @@ jobs:
           grep -qF 'facts.qualityHeight' build-src/lib/episode_durations.dart
           grep -qF 'quality: stats.qualityLabel(episode.id),' build-src/lib/ui/detail/detail_page.dart
           # 原生从播放列表 RESOLUTION 取最高档；缓存升版补记老剧的画质
-          grep -qF 'nativeDurationCacheVersion = 4' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 5' build-src/native/core/app_durations.go
           grep -qF 'nativeMaxPlaylistHeight(media)' build-src/native/core/app_durations.go
           grep -qF 'json:"quality"' build-src/native/core/app_durations.go
           grep -qF 'Qualities map[string]int64' build-src/native/core/app_durations.go
@@ -1054,7 +1054,7 @@ jobs:
           grep -qF 'func nativeMP4Resolution' build-src/native/core/app_media_probe.go
           grep -qF 'func nativeURLQualityHint' build-src/native/core/app_media_probe.go
           grep -qF 'height = engine.probeMediaHeight(ctx, media)' build-src/native/core/app_durations.go
-          grep -qF 'nativeDurationCacheVersion = 4' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 5' build-src/native/core/app_durations.go
           test -f build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestH264SPSResolution' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestMP4Resolution' build-src/native/core/app_media_probe_test.go
@@ -1072,7 +1072,21 @@ jobs:
           grep -qF 'func TestDecryptSegment' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestMasterPlaylistHeight' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestPlaylistKey' build-src/native/core/app_media_probe_test.go
-          grep -qF 'nativeDurationCacheVersion = 4' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 5' build-src/native/core/app_durations.go
+
+          echo '---- +174 自检 ----'
+          # SPS 裁剪字段顺序修正：left, right / top, bottom
+          grep -qF 'left, right = reader.ue(), reader.ue()' build-src/native/core/app_media_probe.go
+          grep -qF 'top, bottom = reader.ue(), reader.ue()' build-src/native/core/app_media_probe.go
+          # 档位闸门：非标准档位一律丢弃，宁可不标也不标假的
+          grep -qF 'func nativeSanitizeHeight' build-src/native/core/app_media_probe.go
+          grep -qF 'var nativeKnownHeights' build-src/native/core/app_media_probe.go
+          grep -qF 'height = nativeSanitizeHeight(height)' build-src/native/core/app_durations.go
+          grep -qF 'return nativeSanitizeHeight(int64(min(width, height)))' build-src/native/core/app_media_probe.go
+          grep -qF 'func TestSanitizeHeight' build-src/native/core/app_media_probe_test.go
+          # 冷却分支回填画质：有画质没时长的集不再丢标注
+          grep -qF 'results[index].QualityHeight = record.Qualities[chapter.ID]' build-src/native/core/app_durations.go
+          test "$(grep -cF 'results[index].QualityHeight = record.Qualities' build-src/native/core/app_durations.go)" -ge 2
 
       - uses: actions/setup-python@v5
         with:
