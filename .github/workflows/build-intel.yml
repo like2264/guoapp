@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+176-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+177-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+176' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+177' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1128,6 +1128,19 @@ jobs:
           grep -qF "'action': 'probeQualities'" build-src/lib/core_bridge.dart
           grep -qF 'unawaited(_probeQualities(generation))' build-src/lib/episode_durations.dart
           grep -qF 'Future<void> _probeQualities(int generation)' build-src/lib/episode_durations.dart
+
+          echo '---- +177 自检 ----'
+          # 画质探测失败冷却与时长统计分开，互不拖累
+          grep -qF 'ProbeMissed map[string]int64' build-src/native/core/app_durations.go
+          grep -qF 'if at, missed := record.ProbeMissed[id]' build-src/native/core/app_durations.go
+          grep -qF 'delete(record.ProbeMissed, id)' build-src/native/core/app_durations.go
+          grep -qF 'func TestProbeMissedIndependentOfDuration' build-src/native/core/app_durations_test.go
+          # 单集预算 5 秒、画质探测并发比时长多一路
+          grep -qF 'nativeProbeBudget+time.Second' build-src/native/core/app_durations.go
+          grep -qF 'min(nativeDurationWorkers+1, len(pending))' build-src/native/core/app_durations.go
+          # Dart 分批探测，避免整部剧一次调用撞超时
+          test "$(grep -cF 'final batch = queue.take(_batchSize).toList()' build-src/lib/episode_durations.dart)" -ge 2
+          grep -qF 'heights = await repository.probeQualities(drama, batch)' build-src/lib/episode_durations.dart
 
       - uses: actions/setup-python@v5
         with:
