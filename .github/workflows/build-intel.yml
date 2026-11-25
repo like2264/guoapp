@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+170-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+171-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+170' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+171' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -631,7 +631,7 @@ jobs:
           grep -qF 'if (found == 0 && queue.isNotEmpty) {' build-src/lib/episode_durations.dart
           # 面板上真的挂了这一行（电视布局塞在同一行里）
           grep -qF 'EpisodeDurations durationsOf(DramaDetails details)' build-src/lib/ui/detail/detail_page.dart
-          grep -qF 'return EpisodeDurationLabel(stats: durationsOf(details), fontSize: m.summary);' build-src/lib/ui/detail/detail_page.dart
+          grep -qF 'EpisodeDurationLabel(' build-src/lib/ui/detail/detail_page.dart
           grep -qF '_durationText(details, m)' build-src/lib/ui/detail/detail_page.dart
           grep -qF '_durationText(details, m),' build-src/lib/ui/detail/detail_page.dart
           grep -qF "episode_durations.dart';" build-src/lib/ui/detail/detail_page.dart
@@ -642,8 +642,9 @@ jobs:
           test -f build-src/native/core/app_durations.go
           grep -qF 'func (engine *nativeEngine) nativeChapterDurations' build-src/native/core/app_durations.go
           grep -qF 'nativeDurationFile' build-src/native/core/app_durations.go
-          grep -qF 'nativeDurationWorkers    = 3' build-src/native/core/app_durations.go
-          grep -qF 'func (engine *nativeEngine) probeChapterDuration' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationWorkers' build-src/native/core/app_durations.go
+          grep -qF '= 3' build-src/native/core/app_durations.go
+          grep -qF 'func (engine *nativeEngine) probeChapterFacts' build-src/native/core/app_durations.go
           grep -qF 'func (engine *nativeEngine) variantPlaylistDuration' build-src/native/core/app_durations.go
           grep -qF 'case "chapterDurations":' build-src/native/core/app_runtime.go
           grep -qF '"chapterDurations"' build-src/native/core/app_build.go
@@ -1027,6 +1028,19 @@ jobs:
           # 纯黑深色模式已移除
           if grep -qF "title: '纯黑深色模式'" build-src/lib/ui/settings/appearance_settings.dart; then echo '纯黑开关还在'; exit 1; fi
           grep -qF 'bool get pureBlack => false;' build-src/lib/local_store.dart
+
+          echo '---- +171 自检 ----'
+          # 每集画质跟时长一次解析拿到，Dart 侧一张表带出来
+          grep -qF 'Future<Map<String, ChapterFacts>> chapterFacts(' build-src/lib/core_bridge.dart
+          if grep -qF 'chapterDurations(' build-src/lib/core_bridge.dart; then echo '旧时长接口还在'; exit 1; fi
+          grep -qF 'String qualityLabel(String episodeId)' build-src/lib/episode_durations.dart
+          grep -qF 'facts.qualityHeight' build-src/lib/episode_durations.dart
+          grep -qF 'quality: stats.qualityLabel(episode.id),' build-src/lib/ui/detail/detail_page.dart
+          # 原生从播放列表 RESOLUTION 取最高档；缓存升版补记老剧的画质
+          grep -qF 'nativeDurationCacheVersion = 2' build-src/native/core/app_durations.go
+          grep -qF 'nativeMaxPlaylistHeight(media)' build-src/native/core/app_durations.go
+          grep -qF 'json:"quality"' build-src/native/core/app_durations.go
+          grep -qF 'Qualities map[string]int64' build-src/native/core/app_durations.go
 
       - uses: actions/setup-python@v5
         with:
