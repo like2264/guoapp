@@ -1037,7 +1037,7 @@ jobs:
           grep -qF 'facts.qualityHeight' build-src/lib/episode_durations.dart
           grep -qF 'quality: stats.qualityLabel(episode.id),' build-src/lib/ui/detail/detail_page.dart
           # 原生从播放列表 RESOLUTION 取最高档；缓存升版补记老剧的画质
-          grep -qF 'nativeDurationCacheVersion = 3' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 4' build-src/native/core/app_durations.go
           grep -qF 'nativeMaxPlaylistHeight(media)' build-src/native/core/app_durations.go
           grep -qF 'json:"quality"' build-src/native/core/app_durations.go
           grep -qF 'Qualities map[string]int64' build-src/native/core/app_durations.go
@@ -1054,7 +1054,7 @@ jobs:
           grep -qF 'func nativeMP4Resolution' build-src/native/core/app_media_probe.go
           grep -qF 'func nativeURLQualityHint' build-src/native/core/app_media_probe.go
           grep -qF 'height = engine.probeMediaHeight(ctx, media)' build-src/native/core/app_durations.go
-          grep -qF 'nativeDurationCacheVersion = 3' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 4' build-src/native/core/app_durations.go
           test -f build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestH264SPSResolution' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestMP4Resolution' build-src/native/core/app_media_probe_test.go
@@ -1072,6 +1072,7 @@ jobs:
           grep -qF 'func TestDecryptSegment' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestMasterPlaylistHeight' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestPlaylistKey' build-src/native/core/app_media_probe_test.go
+          grep -qF 'nativeDurationCacheVersion = 4' build-src/native/core/app_durations.go
 
       - uses: actions/setup-python@v5
         with:
