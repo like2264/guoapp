@@ -1037,7 +1037,7 @@ jobs:
           grep -qF 'facts.qualityHeight' build-src/lib/episode_durations.dart
           grep -qF 'quality: stats.qualityLabel(episode.id),' build-src/lib/ui/detail/detail_page.dart
           # 原生从播放列表 RESOLUTION 取最高档；缓存升版补记老剧的画质
-          grep -qF 'nativeDurationCacheVersion = 6' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
           grep -qF 'nativeMaxPlaylistHeight(media)' build-src/native/core/app_durations.go
           grep -qF 'json:"quality"' build-src/native/core/app_durations.go
           grep -qF 'Qualities map[string]int64' build-src/native/core/app_durations.go
@@ -1055,7 +1055,7 @@ jobs:
           grep -qF 'func nativeURLQualityHint' build-src/native/core/app_media_probe.go
           # +175 起主链路不再做字节探测（真值靠播放回写），断言它不在
           if grep -qF 'height = engine.probeMediaHeight(ctx, media)' build-src/native/core/app_durations.go; then echo '字节探测又回到主链路了'; exit 1; fi
-          grep -qF 'nativeDurationCacheVersion = 6' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
           test -f build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestH264SPSResolution' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestMP4Resolution' build-src/native/core/app_media_probe_test.go
@@ -1073,7 +1073,7 @@ jobs:
           grep -qF 'func TestDecryptSegment' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestMasterPlaylistHeight' build-src/native/core/app_media_probe_test.go
           grep -qF 'func TestPlaylistKey' build-src/native/core/app_media_probe_test.go
-          grep -qF 'nativeDurationCacheVersion = 6' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
 
           echo '---- +174 自检 ----'
           # SPS 裁剪字段顺序修正：left, right / top, bottom
@@ -1081,7 +1081,8 @@ jobs:
           grep -qF 'top, bottom = reader.ue(), reader.ue()' build-src/native/core/app_media_probe.go
           # 档位闸门：非标准档位一律丢弃，宁可不标也不标假的
           grep -qF 'func nativeSanitizeHeight' build-src/native/core/app_media_probe.go
-          grep -qF 'var nativeKnownHeights' build-src/native/core/app_media_probe.go
+          # +176 去掉 ±8 吸附闸门：只做范围校验，真档位 470/834 照实标
+          if grep -qF 'var nativeKnownHeights' build-src/native/core/app_media_probe.go; then echo '标准档闸门又回来了'; exit 1; fi
           # +175 起主链路不再过闸门（闸门 ±8 会误杀 834/470 这类真档位）
           if grep -qF 'nativeSanitizeHeight(height)' build-src/native/core/app_durations.go; then echo '闸门又回到主链路了'; exit 1; fi
           grep -qF 'return nativeSanitizeHeight(int64(min(width, height)))' build-src/native/core/app_media_probe.go
@@ -1097,7 +1098,7 @@ jobs:
           grep -qF 'Decoded map[string]int64' build-src/native/core/app_durations.go
           grep -qF 'record.Decoded[input.Chapter.ID] = int64(input.Quality)' build-src/native/core/app_durations.go
           grep -qF 'func TestRecordChapterQualityWins' build-src/native/core/app_durations_test.go
-          grep -qF 'nativeDurationCacheVersion = 6' build-src/native/core/app_durations.go
+          grep -qF 'nativeDurationCacheVersion = 7' build-src/native/core/app_durations.go
           # 真值优先：读缓存时 Decoded 盖过站点声明；探测不再覆盖真值
           grep -qF 'if decoded := record.Decoded[id]; decoded > 0' build-src/native/core/app_durations.go
           grep -qF 'if record.Decoded[id] == 0' build-src/native/core/app_durations.go
@@ -1109,6 +1110,24 @@ jobs:
           grep -qF 'await repository.recordQuality(detail.drama, episode, height)' build-src/lib/playback_session.dart
           grep -qF 'Future<void> refreshQualities()' build-src/lib/episode_durations.dart
           grep -qF 'durationsOf(details).refreshQualities()' build-src/lib/ui/detail/detail_page.dart
+
+          echo '---- +176 自检 ----'
+          # 独立后台画质探测 action：不进播放页也能标注单路 m3u8 站
+          grep -qF 'case "probeQualities":' build-src/native/core/app_runtime.go
+          grep -qF 'func (engine *nativeEngine) nativeProbeQualities' build-src/native/core/app_durations.go
+          grep -qF 'func (engine *nativeEngine) probeQualityHeight' build-src/native/core/app_durations.go
+          grep -qF 'Probed map[string]int64' build-src/native/core/app_durations.go
+          grep -qF 'func TestProbeQualitiesPriority' build-src/native/core/app_durations_test.go
+          # 档位不再吸附标准档：只挡离谱假值，真裁剪档照实标
+          grep -qF 'if value < 320 || value > 4320' build-src/native/core/app_media_probe.go
+          grep -qF '470: 470, 834: 834' build-src/native/core/app_media_probe_test.go
+          # 优先级：Decoded > Qualities > Probed
+          grep -qF 'if declared := record.Qualities[id]; declared > 0' build-src/native/core/app_durations.go
+          grep -qF 'return record.Probed[id]' build-src/native/core/app_durations.go
+          # Dart：进详情页独立触发后台探测，不阻塞时长统计
+          grep -qF "'action': 'probeQualities'" build-src/lib/core_bridge.dart
+          grep -qF 'unawaited(_probeQualities(generation))' build-src/lib/episode_durations.dart
+          grep -qF 'Future<void> _probeQualities(int generation)' build-src/lib/episode_durations.dart
 
       - uses: actions/setup-python@v5
         with:
