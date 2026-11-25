@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+171-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+172-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+171' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+172' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1018,7 +1018,7 @@ jobs:
           if grep -qF "title: 'Liquid Glass 外观'" build-src/lib/ui/settings/appearance_settings.dart; then echo '外观开关还在'; exit 1; fi
           grep -qF 'bool get liquidGlass => !pureBlack;' build-src/lib/local_store.dart
 
-          echo '---- +171 自检 ----'
+          echo '---- +172 自检 ----'
           # 深色发灰 / 内容溢出框外 / 详情页闪白线：全 App 原生玻璃容器撤掉，回手绘
           if grep -qF 'LiquidGlassContainer(' build-src/lib/ui/theme/glass.dart; then echo '原生玻璃容器又回来了'; exit 1; fi
           if grep -qF 'NativeLiquidGlassUtils.supportsLiquidGlass' build-src/lib/ui/theme/glass.dart; then echo '玻璃容器又走原生通道了'; exit 1; fi
