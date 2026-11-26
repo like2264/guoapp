@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+176-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+177-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+176' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+177' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1060,7 +1060,7 @@ jobs:
           grep -qF 'void _alignListed() {' build-src/lib/explore_feed.dart
           grep -qF 'if (_disposed || _recounting || _sweeping) return;' build-src/lib/explore_feed.dart
           grep -qF 'if (feed.hasMore ||' build-src/lib/explore_feed.dart
-          grep -qF 'final pending = _pendingListed.remove(source) ?? 0;' build-src/lib/explore_feed.dart
+          grep -qF '_pendingListed.remove(source);' build-src/lib/explore_feed.dart
           grep -qF 'if (_listed[source] == target && _facts.listed == target) return;' build-src/lib/explore_feed.dart
           grep -qF 'void alignNow() => _alignListed();' build-src/lib/explore_feed.dart
           grep -qF '定时对齐：没到底不写小顶栏，到底后顶栏与底部一致' build-src/test/explore_feed_test.dart
@@ -1071,6 +1071,15 @@ jobs:
           grep -qF 'final bottomedAll = _tab.id == CatalogCategory.all.id &&' build-src/lib/explore_feed.dart
           grep -qF 'if (!bottomedAll) {' build-src/lib/explore_feed.dart
           grep -qF '翻到底后刷新，列表全程不缩水、新剧不会出现又消失' build-src/test/explore_feed_test.dart
+
+          echo '---- +177 自检 ----'
+          # ①写盘失败重试的早退不许绕过 raw 真值通道；
+          # ②切源清掉重测时间戳；③定时对齐不被过期 pending 写大顶栏。
+          grep -qF 'if query == "" && !input.Raw {' build-src/native/core/app_runtime.go
+          grep -qF 'TestCatalogRawIgnoresRetriedSaveCache' build-src/native/core/app_catalog_raw_test.go
+          grep -qF '_lastRecountAt = null;' build-src/lib/explore_feed.dart
+          grep -qF 'final target = feed.items.length;' build-src/lib/explore_feed.dart
+          grep -qF '定时对齐不会被过期的偏大 pending 写大顶栏' build-src/test/explore_feed_test.dart
 
       - uses: actions/setup-python@v5
         with:
