@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+177-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+178-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+177' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+178' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -931,7 +931,7 @@ jobs:
           if grep -qF 'sigmaX: 6,' build-src/lib/ui/widgets/glass_tab_bar.dart; then echo '底栏还是 +162 的糊度'; exit 1; fi
           # 3. 隐藏作品补齐：无条件 restore + 分类深扫并发
           grep -qF '            restore: true,' build-src/lib/explore_feed.dart
-          grep -qF "lane: concurrent ? '-sweep-\${i % lanes}-probe' : ''," build-src/lib/explore_feed.dart
+          grep -qF "lane: concurrent ? '-sweep-\${i % lanes}-probe' : into != null ? '-sweep-shallow-probe' : ''," build-src/lib/explore_feed.dart
           grep -qF 'final concurrent = into != null && !shallow;' build-src/lib/explore_feed.dart
           if grep -qF 'restore: _facts.listed > rebuilt.length,' build-src/lib/explore_feed.dart; then echo '隐藏作品补齐又被 12h 节流挡住'; exit 1; fi
 
@@ -1080,6 +1080,12 @@ jobs:
           grep -qF '_lastRecountAt = null;' build-src/lib/explore_feed.dart
           grep -qF 'final target = feed.items.length;' build-src/lib/explore_feed.dart
           grep -qF '定时对齐不会被过期的偏大 pending 写大顶栏' build-src/test/explore_feed_test.dart
+
+          echo '---- +178 自检 ----'
+          # probe 通道按用途拆开：定时探头独占默认 -probe，首屏补拉和浅层补新各走专用道
+          grep -qF "lane: '-probe-refresh'," build-src/lib/explore_feed.dart
+          grep -qF -- '-sweep-shallow-probe' build-src/lib/explore_feed.dart
+          grep -qF '定时探头与浅层分类补新各走独立通道' build-src/test/explore_feed_test.dart
 
       - uses: actions/setup-python@v5
         with:
