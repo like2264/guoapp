@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+173-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+174-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+173' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+174' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1029,6 +1029,28 @@ jobs:
           # 纯黑深色模式已移除
           if grep -qF "title: '纯黑深色模式'" build-src/lib/ui/settings/appearance_settings.dart; then echo '纯黑开关还在'; exit 1; fi
           grep -qF 'bool get pureBlack => false;' build-src/lib/local_store.dart
+
+          echo '---- +174 自检 ----'
+          # 重走目录 / 分类补齐必须走只读真值通道：不再把旧缓存全量当成站点当页，
+          # 也不沿用上次「已到底」的 hasMore（否则刷新几次才偶然更新一次）。
+          grep -qF 'bool raw = false,' build-src/lib/core_bridge.dart
+          grep -qF "'raw': raw," build-src/lib/core_bridge.dart
+          grep -qF "'lane': lane," build-src/lib/core_bridge.dart
+          grep -qF 'bool raw = false,' build-src/lib/source_catalog.dart
+          grep -qF 'raw: raw,' build-src/lib/source_catalog.dart
+          grep -qF 'raw: true,' build-src/lib/explore_feed.dart
+          grep -qF 'json:"raw"' build-src/native/core/app_runtime.go
+          grep -qF 'if query == "" && page == 1 && !input.Force && !input.Raw {' build-src/native/core/app_runtime.go
+          grep -qF 'if !input.Raw {' build-src/native/core/app_runtime.go
+          grep -qF 'engine.lockSourceCatalog(ctx, source, input.Lane)' build-src/native/core/app_runtime.go
+          grep -qF 'func (engine *nativeEngine) lockSourceCatalog(ctx context.Context, source, lane string)' build-src/native/core/app_sources.go
+          test -f build-src/native/core/app_catalog_raw_test.go
+          # 顶栏第一时间跟底部同步：扫分类期间拉到底的实测值不能丢。
+          grep -qF 'final _pendingListed = <String, int>{};' build-src/lib/explore_feed.dart
+          grep -qF 'into?.length ?? pending' build-src/lib/explore_feed.dart
+          grep -qF 'if (rebuilt.isNotEmpty && rebuilt.length >= feed.items.length)' build-src/lib/explore_feed.dart
+          if grep -qF 'if (_sweeping) return;' build-src/lib/explore_feed.dart; then echo '扫分类期间拉到底的实测值又被丢了'; exit 1; fi
+          grep -qF '重走整条目录走只读真值通道' build-src/test/explore_feed_test.dart
 
       - uses: actions/setup-python@v5
         with:
