@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+179-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+173-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+179' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+173' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1029,58 +1029,6 @@ jobs:
           # 纯黑深色模式已移除
           if grep -qF "title: '纯黑深色模式'" build-src/lib/ui/settings/appearance_settings.dart; then echo '纯黑开关还在'; exit 1; fi
           grep -qF 'bool get pureBlack => false;' build-src/lib/local_store.dart
-
-          echo '---- +174 自检 ----'
-          # 重走目录 / 分类补齐必须走只读真值通道：不再把旧缓存全量当成站点当页，
-          # 也不沿用上次「已到底」的 hasMore（否则刷新几次才偶然更新一次）。
-          grep -qF 'bool raw = false,' build-src/lib/core_bridge.dart
-          grep -qF "'raw': raw," build-src/lib/core_bridge.dart
-          grep -qF "'lane': lane," build-src/lib/core_bridge.dart
-          grep -qF 'bool raw = false,' build-src/lib/source_catalog.dart
-          grep -qF 'raw: raw,' build-src/lib/source_catalog.dart
-          grep -qF 'raw: true,' build-src/lib/explore_feed.dart
-          grep -qF 'json:"raw"' build-src/native/core/app_runtime.go
-          grep -qF 'if query == "" && page == 1 && !input.Force && !input.Raw {' build-src/native/core/app_runtime.go
-          grep -qF 'if !input.Raw {' build-src/native/core/app_runtime.go
-          grep -qF 'engine.lockSourceCatalog(ctx, source, input.Lane)' build-src/native/core/app_runtime.go
-          grep -qF 'func (engine *nativeEngine) lockSourceCatalog(ctx context.Context, source, lane string)' build-src/native/core/app_sources.go
-          test -f build-src/native/core/app_catalog_raw_test.go
-          # 顶栏第一时间跟底部同步：扫分类期间拉到底的实测值不能丢。
-          grep -qF 'final _pendingListed = <String, int>{};' build-src/lib/explore_feed.dart
-          grep -qF 'into?.length ?? pending' build-src/lib/explore_feed.dart
-          grep -qF 'if (rebuilt.isNotEmpty && rebuilt.length >= feed.items.length)' build-src/lib/explore_feed.dart
-          if grep -qF 'if (_sweeping) return;' build-src/lib/explore_feed.dart; then echo '扫分类期间拉到底的实测值又被丢了'; exit 1; fi
-          grep -qF '重走整条目录走只读真值通道' build-src/test/explore_feed_test.dart
-
-          echo '---- +175 自检 ----'
-          # 顶栏数定时对齐：20 秒一次，把顶栏实测数对齐到已翻到底的列表条数。
-          grep -qF 'static const _alignInterval = Duration(seconds: 20);' build-src/lib/explore_feed.dart
-          grep -qF 'Timer.periodic(_alignInterval, (_) => _alignListed());' build-src/lib/explore_feed.dart
-          grep -qF '_alignTimer?.cancel();' build-src/lib/explore_feed.dart
-          grep -qF 'void _alignListed() {' build-src/lib/explore_feed.dart
-          grep -qF 'if (_disposed || _recounting || _sweeping) return;' build-src/lib/explore_feed.dart
-          grep -qF 'if (feed.hasMore ||' build-src/lib/explore_feed.dart
-          grep -qF 'final pending = _pendingListed.remove(source) ?? 0;' build-src/lib/explore_feed.dart
-          grep -qF 'if (_listed[source] == target && _facts.listed == target) return;' build-src/lib/explore_feed.dart
-          grep -qF 'void alignNow() => _alignListed();' build-src/lib/explore_feed.dart
-          grep -qF '定时对齐：没到底不写小顶栏，到底后顶栏与底部一致' build-src/test/explore_feed_test.dart
-
-          echo '---- +176 自检 ----'
-          # 探头 20 秒；翻到底的「全部」刷新不能再 reload 缩回第一页。
-          grep -qF 'static const _pulseInterval = Duration(seconds: 20);' build-src/lib/explore_feed.dart
-          grep -qF 'final bottomedAll = _tab.id == CatalogCategory.all.id &&' build-src/lib/explore_feed.dart
-          grep -qF 'if (!bottomedAll) {' build-src/lib/explore_feed.dart
-          grep -qF '翻到底后刷新，列表全程不缩水、新剧不会出现又消失' build-src/test/explore_feed_test.dart
-
-          echo '---- +179 自检 ----'
-          # 回退到 +176 基线，只保留「切源清重测时间戳」这一条；+177/+178 的其余改动都不在。
-          grep -qF '_lastRecountAt = null;' build-src/lib/explore_feed.dart
-          if grep -qF 'if query == "" && !input.Raw {' build-src/native/core/app_runtime.go; then echo '+177 raw 修复没回退干净'; exit 1; fi
-          if grep -qF 'TestCatalogRawIgnoresRetriedSaveCache' build-src/native/core/app_catalog_raw_test.go; then echo '+177 raw 测试没回退干净'; exit 1; fi
-          if grep -qF "lane: '-probe-refresh'," build-src/lib/explore_feed.dart; then echo '+178 通道拆分没回退干净'; exit 1; fi
-          if grep -qF -- '-sweep-shallow-probe' build-src/lib/explore_feed.dart; then echo '+178 通道拆分没回退干净'; exit 1; fi
-          if grep -qF 'seedPendingListed' build-src/lib/explore_feed.dart; then echo '+177 pending 修复没回退干净'; exit 1; fi
-          if grep -qF '定时探头与浅层分类补新各走独立通道' build-src/test/explore_feed_test.dart; then echo '+178 通道测试没回退干净'; exit 1; fi
 
       - uses: actions/setup-python@v5
         with:
