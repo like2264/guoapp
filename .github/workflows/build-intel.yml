@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+174-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+175-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+174' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+175' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1051,6 +1051,19 @@ jobs:
           grep -qF 'if (rebuilt.isNotEmpty && rebuilt.length >= feed.items.length)' build-src/lib/explore_feed.dart
           if grep -qF 'if (_sweeping) return;' build-src/lib/explore_feed.dart; then echo '扫分类期间拉到底的实测值又被丢了'; exit 1; fi
           grep -qF '重走整条目录走只读真值通道' build-src/test/explore_feed_test.dart
+
+          echo '---- +175 自检 ----'
+          # 顶栏数定时对齐：20 秒一次，把顶栏实测数对齐到已翻到底的列表条数。
+          grep -qF 'static const _alignInterval = Duration(seconds: 20);' build-src/lib/explore_feed.dart
+          grep -qF 'Timer.periodic(_alignInterval, (_) => _alignListed());' build-src/lib/explore_feed.dart
+          grep -qF '_alignTimer?.cancel();' build-src/lib/explore_feed.dart
+          grep -qF 'void _alignListed() {' build-src/lib/explore_feed.dart
+          grep -qF 'if (_disposed || _recounting || _sweeping) return;' build-src/lib/explore_feed.dart
+          grep -qF 'if (feed.hasMore ||' build-src/lib/explore_feed.dart
+          grep -qF 'final pending = _pendingListed.remove(source) ?? 0;' build-src/lib/explore_feed.dart
+          grep -qF 'if (_listed[source] == target && _facts.listed == target) return;' build-src/lib/explore_feed.dart
+          grep -qF 'void alignNow() => _alignListed();' build-src/lib/explore_feed.dart
+          grep -qF '定时对齐：没到底不写小顶栏，到底后顶栏与底部一致' build-src/test/explore_feed_test.dart
 
       - uses: actions/setup-python@v5
         with:
