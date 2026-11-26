@@ -1079,6 +1079,8 @@ jobs:
           if grep -qF 'TestCatalogRawIgnoresRetriedSaveCache' build-src/native/core/app_catalog_raw_test.go; then echo '+177 raw 测试没回退干净'; exit 1; fi
           if grep -qF "lane: '-probe-refresh'," build-src/lib/explore_feed.dart; then echo '+178 通道拆分没回退干净'; exit 1; fi
           if grep -qF -- '-sweep-shallow-probe' build-src/lib/explore_feed.dart; then echo '+178 通道拆分没回退干净'; exit 1; fi
+          if grep -qF 'seedPendingListed' build-src/lib/explore_feed.dart; then echo '+177 pending 修复没回退干净'; exit 1; fi
+          if grep -qF '定时探头与浅层分类补新各走独立通道' build-src/test/explore_feed_test.dart; then echo '+178 通道测试没回退干净'; exit 1; fi
 
       - uses: actions/setup-python@v5
         with:
