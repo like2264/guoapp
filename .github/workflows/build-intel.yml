@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+173-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+174-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+173' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+174' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -630,7 +630,7 @@ jobs:
           grep -qF 'final signature = usable.isEmpty' build-src/lib/episode_durations.dart
           grep -qF 'if (signature == _signature) return;' build-src/lib/episode_durations.dart
           # 整批都拿不到就收手，别反复打站源
-          grep -qF 'if (found == 0 && queue.isNotEmpty) {' build-src/lib/episode_durations.dart
+          grep -qF 'if (found == 0 && pending.isNotEmpty) {' build-src/lib/episode_durations.dart
           # 面板上真的挂了这一行（电视布局塞在同一行里）
           grep -qF 'EpisodeDurations durationsOf(DramaDetails details)' build-src/lib/ui/detail/detail_page.dart
           grep -qF 'return EpisodeDurationLabel(stats: durationsOf(details), fontSize: m.summary);' build-src/lib/ui/detail/detail_page.dart
@@ -1030,6 +1030,23 @@ jobs:
           if grep -qF "title: '纯黑深色模式'" build-src/lib/ui/settings/appearance_settings.dart; then echo '纯黑开关还在'; exit 1; fi
           grep -qF 'bool get pureBlack => false;' build-src/lib/local_store.dart
 
+          echo '---- +174 自检 ----'
+          # iOS VideoToolbox 原始帧硬解直通（只影响 iOS，其他端保持原解码方式）
+          test -f build-src/native/ios_mpv/build.py
+          test -f build-src/native/ios_mpv/pixelbuffer.inc
+          test -f build-src/native/ios_mpv/stage_test_app.py
+          test -f build-src/packages/media_kit_video/ios/Classes/plugin/TextureVideoToolbox.swift
+          grep -qF 'guoapp-ios-pixelbuffer' build-src/scripts/build_ios.py
+          grep -qF 'GuoApp iOS pixel-buffer backend' build-src/ios/Podfile
+          grep -qF "'videotoolbox,videotoolbox-copy'" build-src/lib/playback_session.dart
+          grep -qF 'enum TelevisionDecoder { optimized, hardwareDirect' build-src/lib/playback_preferences.dart
+          grep -qF "TelevisionDecoder.hardwareDirect: '硬解（直通）'" build-src/lib/ui/settings/settings_sections.dart
+          grep -qF 'TextureVideoToolbox(handle: handle' build-src/packages/media_kit_video/ios/Classes/plugin/common/VideoOutput.swift
+          # 选集时长卡在「32/35 集」：失败批强制重测
+          grep -qF 'force: round > 0' build-src/lib/episode_durations.dart
+          grep -qF "'force': force" build-src/lib/core_bridge.dart
+          grep -qF '最后一批偶发失败会强制重测' build-src/test/episode_durations_test.dart
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -1067,6 +1084,8 @@ jobs:
           pod --version
           go version
           flutter --version
+          # +174：VideoToolbox 原始帧后端需要自行编译 libmpv。
+          brew install meson ninja cmake pkgconf
           flutter precache --ios
 
       - name: 构建 iOS 未签名包
