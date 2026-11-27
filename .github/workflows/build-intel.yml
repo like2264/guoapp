@@ -1086,6 +1086,13 @@ jobs:
           grep -qF 'Future<void> _confirmRemoveDownloads(' build-src/lib/ui/mine/mine_page.dart
           grep -qF "title: '已下载'" build-src/lib/ui/mine/mine_page.dart
           grep -qF 'DownloadedDramaPage(' build-src/lib/ui/mine/mine_page.dart
+          # +180：野果换域，白名单与线路发现必须带新后缀
+          grep -qF 'const baseUrl = "https://attract.ucqmdens.cc";' build-src/native/core/bundled/yeguo/main.js
+          grep -qF 'const activeSuffixes = [".buxefaex.cc", ".fzchosdi.cc", ".lwblvxvy.cc", ".vgbyziuz.cc", ".ucqmdens.cc", ".inwjhpwd.cc", ".ocdjlxow.cc", ".shuifeng.cc"];' build-src/native/core/bundled/yeguo/main.js
+          grep -qF '"api.shuifeng.cc"' build-src/native/core/bundled/yeguo/manifest.json
+          grep -qF '"version": "1.0.3"' build-src/native/core/bundled/yeguo/manifest.json
+          cmp -s build-src/native/core/bundled/yeguo/main.js build-src/bundled-modules/yeguo/main.js
+          cmp -s build-src/native/core/bundled/yeguo/manifest.json build-src/bundled-modules/yeguo/manifest.json
 
       - uses: actions/setup-python@v5
         with:
