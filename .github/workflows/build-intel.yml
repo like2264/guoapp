@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+178-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+179-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+178' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+179' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1071,6 +1071,13 @@ jobs:
           grep -qF 'isMP4MediaURL(media.URL)' build-src/native/core/app_durations.go
           grep -qF 'engine.downloader.fetchMP4Duration(ctx, media.URL, media.Referer)' build-src/native/core/app_durations.go
           grep -qF 'TestProbeChapterDurationFetchesMP4Duration' build-src/native/core/app_durations_test.go
+          # +179：源失效报错写明站源、剧名、失效集号；普通失败也写明当前集
+          grep -qF 'String describeEpisodeNumbers' build-src/lib/episode_durations.dart
+          grep -qF '站点源失效或暂不可用，未计入' build-src/lib/episode_durations.dart
+          grep -qF 'String get _sourceEpisodeIdent' build-src/lib/playback_session.dart
+          grep -qF 'Future<String> _sourceFailureNote()' build-src/lib/playback_session.dart
+          grep -qF 'a dead source names the show, source and affected episodes' build-src/test/playback_session_test.dart
+          grep -qF '失效集号按升序去重写成一句' build-src/test/episode_durations_test.dart
 
       - uses: actions/setup-python@v5
         with:
