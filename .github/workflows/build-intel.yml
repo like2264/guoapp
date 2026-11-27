@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+176-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+177-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+176' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+177' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1056,6 +1056,16 @@ jobs:
           grep -qF 'engine.downloader.fetchMediaPlaylist(ctx, media.URL, media.Referer)' build-src/native/core/app_durations.go
           grep -qF 'if fromMaster := M3u8Duration(playlist); fromMaster > 0' build-src/native/core/app_durations.go
           grep -qF 'TestProbeChapterDurationFetchesMasterPlaylist' build-src/native/core/app_durations_test.go
+          # +177：播放页解析真值回写时长缓存 → 退出后 rescan 补齐，修 32/35
+          grep -qF 'stream.duration.listen(_rememberDuration)' build-src/lib/playback_session.dart
+          grep -qF 'repository.saveDurations(detail.drama' build-src/lib/playback_session.dart
+          grep -qF "case \"saveDurations\":" build-src/native/core/app_runtime.go
+          grep -qF 'func (engine *nativeEngine) nativeSaveDurations' build-src/native/core/app_durations.go
+          grep -qF 'rescanDurations(details)' build-src/lib/ui/detail/detail_page.dart
+          grep -qF '统计拿不到的集，播放页回写后 rescan 补齐到 35/35' build-src/test/episode_durations_test.dart
+          # +177：「我的」页最近观看卡片长按删除
+          grep -qF '_confirmRemoveHistory(context, entry)' build-src/lib/ui/mine/mine_page.dart
+          grep -qF 'store.removeHistory({entry.drama.id})' build-src/lib/ui/mine/mine_page.dart
 
       - uses: actions/setup-python@v5
         with:
