@@ -1035,6 +1035,7 @@ jobs:
           test -f build-src/native/ios_mpv/build.py
           test -f build-src/native/ios_mpv/pixelbuffer.inc
           test -f build-src/native/ios_mpv/stage_test_app.py
+          test -f build-src/native/ios_mpv/Mpv.device
           test -f build-src/packages/media_kit_video/ios/Classes/plugin/TextureVideoToolbox.swift
           grep -qF 'guoapp-ios-pixelbuffer' build-src/scripts/build_ios.py
           grep -qF 'GuoApp iOS pixel-buffer backend' build-src/ios/Podfile
