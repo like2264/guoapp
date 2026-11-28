@@ -1112,6 +1112,15 @@ jobs:
           grep -qF '"version": "1.1.9"' build-src/native/core/bundled/youzidj/manifest.json
           cmp -s build-src/native/core/bundled/youzidj/main.js build-src/bundled-modules/youzidj/main.js
           cmp -s build-src/native/core/bundled/youzidj/manifest.json build-src/bundled-modules/youzidj/manifest.json
+          echo '---- +181b 搜索页两项 ----'
+          grep -qF 'final _scroll = ScrollController();' build-src/lib/ui/search/search_page.dart
+          grep -qF 'controller: _scroll,' build-src/lib/ui/search/search_page.dart
+          grep -qF "label: const Text('回到顶部')" build-src/lib/ui/search/search_page.dart
+          grep -qF 'void _toTop()' build-src/lib/ui/search/search_page.dart
+          grep -qF 'void _clearOnTap()' build-src/lib/ui/search/search_page.dart
+          grep -qF 'onTap: _clearOnTap,' build-src/lib/ui/search/search_page.dart
+          grep -qF 'final VoidCallback? onTap;' build-src/lib/ui/widgets/search_field.dart
+          grep -qF 'onTap: onTap,' build-src/lib/ui/widgets/search_field.dart
 
       - uses: actions/setup-python@v5
         with:
