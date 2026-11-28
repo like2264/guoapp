@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           rm -rf build-src
           mkdir -p build-src
-          tar -xzf guoapp-2.0.0+181-full-patch.tar.gz -C build-src
+          tar -xzf guoapp-2.0.0+182-full-patch.tar.gz -C build-src
           echo "---- 版本与补丁自检 ----"
           grep -n '^version:' build-src/pubspec.yaml
           grep -n 'NoRedirect' build-src/native/core/provider_host.go
@@ -39,7 +39,7 @@ jobs:
           grep -n 'func NativePreciseSearchStrict' build-src/native/core/app_search_precision.go
           grep -n 'const searchProbePages = 6' build-src/native/core/app_runtime.go
           grep -n 'searchProbeBudget = 45' build-src/native/core/app_runtime.go
-          grep -c '2.0.0+181' build-src/pubspec.yaml build-src/CHANGELOG.md
+          grep -c '2.0.0+182' build-src/pubspec.yaml build-src/CHANGELOG.md
           grep -n 'searchAll' build-src/native/core/app_runtime.go
           grep -n 'mediaRefererVariants' build-src/native/core/network_media.go
           grep -n 'nativePrefetchChain' build-src/native/core/app_stream.go
@@ -1112,15 +1112,23 @@ jobs:
           grep -qF '"version": "1.1.9"' build-src/native/core/bundled/youzidj/manifest.json
           cmp -s build-src/native/core/bundled/youzidj/main.js build-src/bundled-modules/youzidj/main.js
           cmp -s build-src/native/core/bundled/youzidj/manifest.json build-src/bundled-modules/youzidj/manifest.json
-          echo '---- +181b 搜索页两项 ----'
-          grep -qF 'final _scroll = ScrollController();' build-src/lib/ui/search/search_page.dart
-          grep -qF 'controller: _scroll,' build-src/lib/ui/search/search_page.dart
-          grep -qF "label: const Text('回到顶部')" build-src/lib/ui/search/search_page.dart
-          grep -qF 'void _toTop()' build-src/lib/ui/search/search_page.dart
-          grep -qF 'void _clearOnTap()' build-src/lib/ui/search/search_page.dart
-          grep -qF 'onTap: _clearOnTap,' build-src/lib/ui/search/search_page.dart
-          grep -qF 'final VoidCallback? onTap;' build-src/lib/ui/widgets/search_field.dart
-          grep -qF 'onTap: onTap,' build-src/lib/ui/widgets/search_field.dart
+          # +182：导出自选位置 / 单站源初始化 / 联想两字起 + 第二次搜索才给
+          grep -qF "dialogTitle: '保存模块安装包'" build-src/lib/ui/settings/modules_view.dart
+          grep -qF 'final bytes = await File(staged).readAsBytes();' build-src/lib/ui/settings/modules_view.dart
+          if grep -qF "存到「文件 > guoapp-modules」" build-src/lib/ui/settings/modules_view.dart; then echo '模块导出固定路径没删干净'; exit 1; fi
+          grep -qF 'func (engine *nativeEngine) resetSourceData' build-src/native/core/app_reset_source.go
+          grep -qF 'case "resetSource"' build-src/native/core/app_runtime.go
+          grep -qF 'func nativeClearSuggestions' build-src/native/core/app_suggestions.go
+          grep -qF 'Future<Map<String, int>> resetSource(String id)' build-src/lib/core_bridge.dart
+          grep -qF 'Future<void> resetSourceStats(String id)' build-src/lib/local_store.dart
+          grep -qF 'int get sourceResetSeq' build-src/lib/local_store.dart
+          grep -qF 'void forgetSource(String id)' build-src/lib/explore_feed.dart
+          grep -qF "tooltip: '初始化数据'" build-src/lib/ui/settings/sources_view.dart
+          grep -qF 'int get searchCount' build-src/lib/local_store.dart
+          grep -qF "'searchCount': searchCount + 1," build-src/lib/local_store.dart
+          grep -qF 'bool get _allowSuggestions => widget.store.searchCount >= 1;' build-src/lib/ui/search/search_page.dart
+          grep -qF '!_allowSuggestions ||' build-src/lib/ui/search/search_page.dart
+          grep -qF 'query.runes.length < 2' build-src/lib/ui/search/search_page.dart
 
       - uses: actions/setup-python@v5
         with:
